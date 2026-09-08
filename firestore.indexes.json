@@ -1,0 +1,10 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tools",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "lastUpdated", "order": "DESCENDING" }]
+    }
+  ],
+  "fieldOverrides": []
+}
