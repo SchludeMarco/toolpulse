@@ -1,4 +1,5 @@
 import { usePreferences } from "../hooks/usePreferences";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { categories } from "../data/categories";
 import { useAuth } from "../context/AuthContext";
 
@@ -7,6 +8,7 @@ const weightLabels = ["Ausgeblendet", "Weniger", "Normal", "Bevorzugt"];
 export function SettingsPage() {
   const { prefs, setPrefs, loading } = usePreferences();
   const { user, isDemoMode } = useAuth();
+  const push = usePushNotifications();
 
   const updateWeight = (id: string, value: number) => {
     setPrefs({
@@ -121,9 +123,61 @@ export function SettingsPage() {
           ))}
         </div>
         <p className="mt-2 text-xs text-[var(--text-muted)]">
-          Steuert nur die Vorauswahl der Digest-Ansicht — Push-Benachrichtigungen
-          erfordern eine eigene Firebase-Cloud-Messaging-Einrichtung (siehe README).
+          Steuert nur die Vorauswahl der Digest-Ansicht.
         </p>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-[var(--text-muted)]">
+          Push-Benachrichtigungen
+        </h2>
+        <div className="mt-3 rounded-lg border border-[var(--line)] p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Tool des Tages</p>
+              <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+                Erhalte eine Benachrichtigung, sobald die tägliche Kuratierung
+                ein neues Top-Tool findet.
+              </p>
+            </div>
+            <button
+              disabled={!user || isDemoMode || !push.supported || push.busy}
+              onClick={() => (push.enabled ? push.disable() : push.enable())}
+              className={`focus-ring shrink-0 rounded-md border px-3.5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+                push.enabled
+                  ? "border-[var(--amber)] text-[var(--amber)]"
+                  : "border-[var(--line)] text-[var(--text-muted)]"
+              }`}
+            >
+              {push.busy
+                ? "Bitte warten …"
+                : push.enabled
+                  ? "Deaktivieren"
+                  : "Aktivieren"}
+            </button>
+          </div>
+          {!user && (
+            <p className="mt-3 text-xs text-[var(--text-muted)]">
+              Melde dich an, um Push-Benachrichtigungen zu aktivieren.
+            </p>
+          )}
+          {user && isDemoMode && (
+            <p className="mt-3 text-xs text-[var(--text-muted)]">
+              Push-Benachrichtigungen erfordern ein verbundenes
+              Firebase-Projekt (nicht im Demo-Modus verfügbar, siehe README).
+            </p>
+          )}
+          {user && !isDemoMode && !push.supported && (
+            <p className="mt-3 text-xs text-[var(--text-muted)]">
+              Dein Browser unterstützt keine Push-Benachrichtigungen, oder es
+              fehlt der VAPID-Schlüssel (`VITE_FIREBASE_VAPID_KEY`, siehe
+              README).
+            </p>
+          )}
+          {push.error && (
+            <p className="mt-3 text-xs text-[var(--danger)]">{push.error}</p>
+          )}
+        </div>
       </section>
     </div>
   );

@@ -11,13 +11,17 @@ Wiedervorlage und Wochen-Digest.
 src/
   data/           Kategorien + Demo-/Seed-Daten (nur für Demo-Modus)
   lib/firebase.ts Firebase-Init mit automatischem Demo-Modus-Fallback
+  lib/push.ts     Push-Benachrichtigungen: Token holen/löschen, Foreground-Messages
   context/        Auth (Google-Login) und Vergleichs-Auswahl
-  hooks/          Firestore-Zugriff: Tools, Präferenzen, Merkliste
+  hooks/          Firestore-Zugriff: Tools, Präferenzen, Merkliste, Push
   components/     ToolCard, FilterBar, TrustBadge, Header
   pages/          Feed, Vergleich, Merkliste, Wochen-Digest, Einstellungen
+public/
+  firebase-messaging-sw.js  Service Worker für Push-Benachrichtigungen
 functions/
-  index.js        Tägliche Cloud Function: recherchiert per Claude + Websuche
-                   und schreibt Ergebnisse nach Firestore
+  index.js        Tägliche Cloud Function: recherchiert per Claude + Websuche,
+                   schreibt Ergebnisse nach Firestore und verschickt Push für
+                   das "Tool des Tages"
 firestore.rules    Zugriffsregeln (Tools öffentlich lesbar, Nutzerdaten privat)
 ```
 
@@ -51,7 +55,12 @@ App automatisch in den Live-Modus mit echtem Google-Login und Firestore.
    VITE_FIREBASE_APP_ID=...
    ```
 
-5. Firestore-Regeln deployen:
+5. Für Push-Benachrichtigungen ("Tool des Tages"): Projekteinstellungen →
+   **Cloud Messaging** → Abschnitt "Web-Push-Zertifikate" → Schlüsselpaar
+   generieren, den Wert als `VITE_FIREBASE_VAPID_KEY` in die `.env`
+   eintragen. Ohne diesen Schritt läuft die App normal weiter, nur der
+   "Aktivieren"-Button unter Einstellungen bleibt deaktiviert.
+6. Firestore-Regeln deployen:
 
    ```bash
    npm install -g firebase-tools
@@ -110,10 +119,22 @@ ein (siehe unten).
    Schritt 1 eintragen.
 4. Deploy. Jeder Push auf `main` aktualisiert die Live-Version automatisch.
 
+## Push-Benachrichtigungen ("Tool des Tages")
+
+Über Firebase Cloud Messaging + Service Worker (`public/firebase-messaging-sw.js`).
+Nutzer aktivieren sie unter Einstellungen → "Push-Benachrichtigungen"; der
+Browser-Token landet in Firestore (`pushSubscriptions/{uid}`). Am Ende jedes
+`runCuration()`-Laufs ermittelt die Cloud Function das neu hinzugekommene
+Tool mit dem höchsten Vertrauenswert und verschickt eine Benachrichtigung an
+alle registrierten Geräte (`notifyToolOfTheDay()` in `functions/index.js`);
+ungültige/abgelaufene Tokens werden dabei automatisch entfernt.
+
+Voraussetzung: ein Web-Push-Zertifikat als `VITE_FIREBASE_VAPID_KEY` (siehe
+Einrichtung, Schritt 1.5). Ohne Firebase-Projekt (Demo-Modus) ist die
+Funktion deaktiviert.
+
 ## Was noch erweitert werden kann
 
-- **Push-Benachrichtigungen** bei "Tool des Tages": Firebase Cloud
-  Messaging + Service Worker, angestoßen am Ende von `runCuration()`.
 - **Bessere Trust-Score-Berechnung**: aktuell eine einfache Heuristik nach
   Quellenanzahl. Ließe sich durch mehrere unabhängige Suchanfragen pro Tool
   und echten Abgleich verbessern.

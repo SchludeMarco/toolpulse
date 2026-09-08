@@ -106,12 +106,63 @@ function slugify(name) {
     .replace(/(^-|-$)/g, "");
 }
 
+// Sendet eine Push-Benachrichtigung ans "Tool des Tages" — an alle
+// registrierten Geräte aus der Collection `pushSubscriptions`. Räumt dabei
+// Tokens auf, die FCM als ungültig/abgelaufen meldet.
+async function notifyToolOfTheDay(tool) {
+  const subsSnap = await db.collection("pushSubscriptions").get();
+  const tokenToUid = new Map();
+  subsSnap.forEach((doc) => {
+    const tokens = doc.data().tokens ?? [];
+    for (const token of tokens) tokenToUid.set(token, doc.id);
+  });
+
+  const tokens = [...tokenToUid.keys()];
+  if (tokens.length === 0) return;
+
+  const response = await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: "🔥 Tool des Tages",
+      body: `${tool.name} — ${tool.tagline}`,
+    },
+    data: { url: tool.url, toolId: tool.id },
+  });
+
+  const staleByUid = new Map();
+  response.responses.forEach((r, i) => {
+    const code = r.error?.code;
+    if (
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      const uid = tokenToUid.get(tokens[i]);
+      if (!staleByUid.has(uid)) staleByUid.set(uid, []);
+      staleByUid.get(uid).push(tokens[i]);
+    }
+  });
+
+  await Promise.all(
+    [...staleByUid.entries()].map(([uid, staleTokens]) =>
+      db
+        .collection("pushSubscriptions")
+        .doc(uid)
+        .update({ tokens: admin.firestore.FieldValue.arrayRemove(...staleTokens) })
+    )
+  );
+
+  console.log(
+    `Tool des Tages Push: ${response.successCount}/${tokens.length} zugestellt.`
+  );
+}
+
 async function runCuration() {
   const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
   const now = new Date().toISOString();
   let added = 0;
   let updated = 0;
   const touched = [];
+  let toolOfTheDay = null;
 
   for (const category of CATEGORIES) {
     let entries = [];
@@ -148,7 +199,14 @@ async function runCuration() {
       };
 
       await ref.set(toolDoc, { merge: true });
-      existing.exists ? updated++ : added++;
+      if (existing.exists) {
+        updated++;
+      } else {
+        added++;
+        if (!toolOfTheDay || toolDoc.trustScore > toolOfTheDay.trustScore) {
+          toolOfTheDay = toolDoc;
+        }
+      }
     }
   }
 
@@ -157,7 +215,16 @@ async function runCuration() {
     toolsAdded: added,
     toolsUpdated: updated,
     categoriesTouched: touched,
+    toolOfTheDayId: toolOfTheDay?.id ?? null,
   });
+
+  if (toolOfTheDay) {
+    try {
+      await notifyToolOfTheDay(toolOfTheDay);
+    } catch (e) {
+      console.error("Push-Versand für Tool des Tages fehlgeschlagen:", e);
+    }
+  }
 
   console.log(`Kuratierung abgeschlossen: ${added} neu, ${updated} aktualisiert.`);
 }
