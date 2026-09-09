@@ -5,7 +5,7 @@ import { formatDateDe } from "../lib/time";
 
 export function FavoritesPage() {
   const { tools } = useTools();
-  const { favorites, toggleFavorite } = useFavorites();
+  const { favorites, toggleFavorite, saveError } = useFavorites();
 
   const items = favorites
     .map((f) => ({ fav: f, tool: tools.find((t) => t.id === f.toolId) }))
@@ -24,6 +24,12 @@ export function FavoritesPage() {
         Gemerkte Tools werden nach 30 Tagen automatisch zur erneuten Prüfung
         vorgeschlagen — ist die Empfehlung noch aktuell?
       </p>
+
+      {saveError && (
+        <p className="mt-3 rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
+          Änderungen konnten nicht gespeichert werden: {saveError}
+        </p>
+      )}
 
       {dueForReview.length > 0 && (
         <div className="mt-4 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-4 py-3 text-sm text-[var(--amber)]">

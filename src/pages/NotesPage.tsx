@@ -91,7 +91,7 @@ function NoteCard({
 }
 
 export function NotesPage() {
-  const { notes, addNote, updateNote, deleteNote, loading } = useNotes();
+  const { notes, addNote, updateNote, deleteNote, loading, saveError } = useNotes();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
@@ -113,6 +113,12 @@ export function NotesPage() {
         ausprobieren oder für ein Projekt nutzen willst. Wird auf diesem Gerät
         gespeichert (bzw. in deinem Konto, sobald angemeldet).
       </p>
+
+      {saveError && (
+        <p className="mt-3 rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
+          Änderungen konnten nicht gespeichert werden: {saveError}
+        </p>
+      )}
 
       <form
         onSubmit={submit}

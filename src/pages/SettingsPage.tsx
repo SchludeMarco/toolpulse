@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 const weightLabels = ["Ausgeblendet", "Weniger", "Normal", "Bevorzugt"];
 
 export function SettingsPage() {
-  const { prefs, setPrefs, loading } = usePreferences();
+  const { prefs, setPrefs, loading, saveError } = usePreferences();
   const { user, isDemoMode } = useAuth();
   const push = usePushNotifications();
 
@@ -36,6 +36,12 @@ export function SettingsPage() {
           ? `Gespeichert für ${"displayName" in user ? user.displayName : "dein Konto"}${isDemoMode ? " (lokal, Demo-Modus)" : ""}.`
           : "Melde dich an, um Einstellungen geräteübergreifend zu speichern."}
       </p>
+
+      {saveError && (
+        <p className="mt-3 rounded-md border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
+          Änderungen konnten nicht gespeichert werden: {saveError}
+        </p>
+      )}
 
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-[var(--text-muted)]">

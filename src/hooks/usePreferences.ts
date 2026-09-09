@@ -24,6 +24,7 @@ export function usePreferences() {
   const uid = user?.uid ?? "anon";
   const [prefs, setPrefs] = useState<UserPreferences>(defaultPrefs(uid));
   const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const useFirestore = !isDemoMode && !!db && !!user;
 
@@ -62,10 +63,18 @@ export function usePreferences() {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db!, "userPreferences", uid), next);
+      try {
+        await setDoc(doc(db!, "userPreferences", uid), next);
+        setSaveError(null);
+      } catch (e) {
+        console.error("Einstellungen konnten nicht gespeichert werden:", e);
+        setSaveError(
+          e instanceof Error ? e.message : "Speichern fehlgeschlagen."
+        );
+      }
     },
     [uid, useFirestore]
   );
 
-  return { prefs, setPrefs: save, loading };
+  return { prefs, setPrefs: save, loading, saveError };
 }

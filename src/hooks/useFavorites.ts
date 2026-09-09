@@ -11,6 +11,7 @@ export function useFavorites() {
   const uid = user?.uid ?? "anon";
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const useFirestore = !isDemoMode && !!db && !!user;
 
@@ -49,7 +50,15 @@ export function useFavorites() {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db!, "favorites", uid), { items: next });
+      try {
+        await setDoc(doc(db!, "favorites", uid), { items: next });
+        setSaveError(null);
+      } catch (e) {
+        console.error("Merkliste konnte nicht gespeichert werden:", e);
+        setSaveError(
+          e instanceof Error ? e.message : "Speichern fehlgeschlagen."
+        );
+      }
     },
     [uid, useFirestore]
   );
@@ -75,5 +84,5 @@ export function useFavorites() {
     [favorites, persist]
   );
 
-  return { favorites, toggleFavorite, loading };
+  return { favorites, toggleFavorite, loading, saveError };
 }
