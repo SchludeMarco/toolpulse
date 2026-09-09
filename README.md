@@ -1,9 +1,19 @@
 # ToolPulse
 
-Eine Web-App, die täglich die aktuell besten Tools für **KI & LLMs, Bilder,
-Haushalt, Essen & Trinken, Freizeit und Kinder** zeigt – personalisiert, mit
-Vertrauens-Score, Preisfilter, Vergleichsfunktion, Merkliste mit
-Wiedervorlage und Wochen-Digest.
+Eine Web-App (Smartphone & Desktop) für alle, die am Puls von Entwicklung und
+Design bleiben wollen: Sie scannt täglich gängige Entwickler- und
+Designerportale und zeigt kuratiert, was aktuell **das beste LLM, die beste
+KI-Bildgenerierung sowie die neuesten Dev- und Design-Trends** sind – mit
+Link zur jeweiligen Quelle, Vertrauens-Score, Preisfilter,
+Vergleichsfunktion, Merkliste mit Wiedervorlage, Wochen-Digest und einem
+**Notizblock** für eigene Ideen.
+
+### Warum der Name ToolPulse
+
+Der Name war beim Start dieses Projekts bereits vergeben und passt weiterhin
+gut: Die App liefert den "Puls" der Tool- und Trendlandschaft. Alternativen,
+falls doch ein Wechsel gewünscht ist: **DevPulse**, **TrendRadar** oder
+**StackScout**.
 
 ## Wie die App aufgebaut ist
 
@@ -13,17 +23,33 @@ src/
   lib/firebase.ts Firebase-Init mit automatischem Demo-Modus-Fallback
   lib/push.ts     Push-Benachrichtigungen: Token holen/löschen, Foreground-Messages
   context/        Auth (Google-Login) und Vergleichs-Auswahl
-  hooks/          Firestore-Zugriff: Tools, Präferenzen, Merkliste, Push
+  hooks/          Firestore-/localStorage-Zugriff: Tools, Präferenzen, Merkliste,
+                   Notizen, Push
   components/     ToolCard, FilterBar, TrustBadge, Header
-  pages/          Feed, Vergleich, Merkliste, Wochen-Digest, Einstellungen
+  pages/          Feed, Vergleich, Merkliste, Wochen-Digest, Notizblock,
+                   Einstellungen
 public/
   firebase-messaging-sw.js  Service Worker für Push-Benachrichtigungen
 functions/
-  index.js        Tägliche Cloud Function: recherchiert per Claude + Websuche,
-                   schreibt Ergebnisse nach Firestore und verschickt Push für
-                   das "Tool des Tages"
-firestore.rules    Zugriffsregeln (Tools öffentlich lesbar, Nutzerdaten privat)
+  index.js        Tägliche Cloud Function: recherchiert per Claude + Websuche
+                   gezielt auf Entwickler- und Designerportalen (GitHub
+                   Trending, Hacker News, dev.to, Awwwards, Dribbble, Behance
+                   u.a.), schreibt Ergebnisse nach Firestore und verschickt
+                   Push für das "Tool des Tages"
+firestore.rules    Zugriffsregeln (Tools öffentlich lesbar, Nutzerdaten
+                   inkl. Notizen privat)
 ```
+
+### Modular erweiterbar
+
+Ein neuer Themenbereich (z.B. "DevOps-Trends" oder "No-Code-Tools") braucht
+nur zwei Ergänzungen: einen Eintrag in `src/data/categories.ts` (Feed,
+Filter, Digest und Einstellungen lesen Bereiche ausschließlich aus dieser
+Liste) und den passenden Recherche-Fokus in der `CATEGORIES`-Konstante in
+`functions/index.js`. Neue Seiten/Features lassen sich analog zum Notizblock
+(`src/hooks/useNotes.ts` + `src/pages/NotesPage.tsx`, Route in `App.tsx`,
+Link in `Header.tsx`) als eigenständiges Hook+Page-Paar ergänzen, ohne
+bestehenden Code anzufassen.
 
 ### Demo-Modus
 

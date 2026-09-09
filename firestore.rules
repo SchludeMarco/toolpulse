@@ -23,6 +23,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
+    // Notizblock: eigene Ideen, ausschließlich für den jeweiligen Nutzer sichtbar.
+    match /notes/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
     // Push-Tokens fürs "Tool des Tages": Nutzer verwalten nur ihre eigenen;
     // die Cloud Function (Admin-SDK) liest alle, um Benachrichtigungen zu
     // versenden, und umgeht dabei diese Regeln.

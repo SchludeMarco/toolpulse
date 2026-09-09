@@ -1,41 +1,36 @@
 import type { Category } from "../types";
 
+// Ein Eintrag hier + eine passende Ergänzung in `functions/index.js`
+// (Konstante `CATEGORIES`) reicht, um einen neuen Themenbereich
+// hinzuzufügen — der Rest der App (Feed, Filter, Digest, Einstellungen)
+// liest Bereiche ausschließlich aus dieser Liste.
 export const categories: Category[] = [
   {
-    id: "ki",
-    label: "KI & LLMs",
-    description: "Modelle, Assistenten und Entwickler-Tools rund um KI",
-    color: "var(--cat-ai)",
+    id: "llm",
+    label: "Beste LLMs",
+    description:
+      "Sprachmodelle und Chat-Assistenten: was Entwickler und Power-User gerade als führend einstufen",
+    color: "var(--cat-llm)",
   },
   {
-    id: "bilder",
-    label: "Bilder",
-    description: "KI-Bildgenerierung: Modelle, Editoren, Upscaler",
-    color: "var(--cat-bilder)",
+    id: "ki-bild",
+    label: "KI-Bildgenerierung",
+    description: "Modelle, Editoren und Tools zum Entwerfen von Bildern per KI",
+    color: "var(--cat-bild)",
   },
   {
-    id: "haushalt",
-    label: "Haushalt",
-    description: "Organisation, Smart Home, Erledigungen",
-    color: "var(--cat-haushalt)",
+    id: "dev-trends",
+    label: "Dev-Trends",
+    description:
+      "Frameworks, Sprachen, Libraries und Tools, die auf GitHub, Hacker News & Co. gerade Fahrt aufnehmen",
+    color: "var(--cat-dev)",
   },
   {
-    id: "essen",
-    label: "Essen & Trinken",
-    description: "Rezepte, Lieferdienste, Ernährungs-Tools",
-    color: "var(--cat-essen)",
-  },
-  {
-    id: "freizeit",
-    label: "Freizeit",
-    description: "Hobbys, Reisen, Unterhaltung",
-    color: "var(--cat-freizeit)",
-  },
-  {
-    id: "kinder",
-    label: "Kinder",
-    description: "Lernen, Betreuung, familienfreundliche Apps",
-    color: "var(--cat-kinder)",
+    id: "design-trends",
+    label: "Design-Trends",
+    description:
+      "UI/UX-Trends, Design-Tools und Inspiration von Designer-Portalen wie Awwwards, Dribbble und Behance",
+    color: "var(--cat-design)",
   },
 ];
 

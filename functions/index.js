@@ -22,18 +22,33 @@ const db = admin.firestore();
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 
+// Ein Eintrag hier + eine passende Ergänzung in `src/data/categories.ts`
+// reicht, um einen neuen Themenbereich hinzuzufügen.
 const CATEGORIES = [
-  { id: "ki", label: "KI & LLMs" },
   {
-    id: "bilder",
-    label: "Bilder",
+    id: "llm",
+    label: "Beste LLMs",
+    focus:
+      "Sprachmodelle und Chat-Assistenten. Stütze dich auf Leaderboards und Vergleiche (z.B. LMArena/Chatbot Arena, offizielle Modell-Ankündigungen von Anthropic/OpenAI/Google/Meta/Mistral, Hacker News, Reddit r/LocalLLaMA) statt auf Marketingtexte allein. Nenne bei jedem Eintrag kurz, worin er sich abhebt (z.B. Coding, Kontextlänge, Kosten, Open Weights).",
+  },
+  {
+    id: "ki-bild",
+    label: "KI-Bildgenerierung",
     focus:
       "KI-Bildgenerierung: konzentriere dich auf Modelle/Tools zum Erzeugen und Bearbeiten von Bildern per KI (z.B. Midjourney, ChatGPT-Bildgenerierung, Gemini, FLUX, Stable Diffusion, Ideogram). Erwähne bei jedem Eintrag kurz, worin es sich abhebt (z.B. Fotorealismus, Text-im-Bild, Bildbearbeitung, Geschwindigkeit, Open Source).",
   },
-  { id: "haushalt", label: "Haushalt" },
-  { id: "essen", label: "Essen & Trinken" },
-  { id: "freizeit", label: "Freizeit" },
-  { id: "kinder", label: "Kinder" },
+  {
+    id: "dev-trends",
+    label: "Dev-Trends",
+    focus:
+      "Aktuelle Entwicklertrends: Frameworks, Sprachen, Libraries, Build-Tools und KI-Coding-Assistenten, die gerade an Fahrt gewinnen. Durchsuche gezielt Entwicklerportale wie GitHub Trending, Hacker News, dev.to, Product Hunt und Stack Overflow — nicht nur allgemeine Nachrichten.",
+  },
+  {
+    id: "design-trends",
+    label: "Design-Trends",
+    focus:
+      "Aktuelle Design- und UI/UX-Trends sowie die Tools dahinter. Durchsuche gezielt Designerportale wie Awwwards, Dribbble, Behance, Smashing Magazine und Muzli. Erwähne bei jedem Eintrag den erkennbaren Trend (z.B. Bento-Grids, Glassmorphism, KI-gestütztes Prototyping).",
+  },
 ];
 
 const SYSTEM_PROMPT = `Du bist ein sorgfältiger Produkt-Scout. Du recherchierst per \

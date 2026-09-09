@@ -11,12 +11,10 @@
   --teal: #3FA796;
   --danger: #D9695F;
 
-  --cat-ai: #7C9CE8;
-  --cat-bilder: #E8C93D;
-  --cat-haushalt: #C98BE0;
-  --cat-essen: #E8A33D;
-  --cat-freizeit: #3FA796;
-  --cat-kinder: #E87DA0;
+  --cat-llm: #7C9CE8;
+  --cat-bild: #E8C93D;
+  --cat-dev: #3FA796;
+  --cat-design: #C98BE0;
 
   font-family: 'Inter', system-ui, sans-serif;
   color-scheme: dark;
