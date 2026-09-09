@@ -53,12 +53,25 @@ export function Header() {
             </span>
           )}
           {user ? (
-            <button
-              onClick={signOutUser}
-              className="focus-ring rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
-            >
-              Abmelden
-            </button>
+            <div className="flex items-center gap-2.5">
+              {user.photoURL && (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="h-7 w-7 rounded-full"
+                />
+              )}
+              <span className="max-w-[9rem] truncate text-sm text-[var(--text-muted)]">
+                {user.displayName ?? "Angemeldet"}
+              </span>
+              <button
+                onClick={signOutUser}
+                className="focus-ring rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+              >
+                Abmelden
+              </button>
+            </div>
           ) : (
             <button
               onClick={signIn}
