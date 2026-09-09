@@ -11,6 +11,7 @@ export function useNotes() {
   const uid = user?.uid ?? "anon";
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const useFirestore = !isDemoMode && !!db && !!user;
 
@@ -49,7 +50,15 @@ export function useNotes() {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db!, "notes", uid), { items: next });
+      try {
+        await setDoc(doc(db!, "notes", uid), { items: next });
+        setSaveError(null);
+      } catch (e) {
+        console.error("Notizen konnten nicht gespeichert werden:", e);
+        setSaveError(
+          e instanceof Error ? e.message : "Speichern fehlgeschlagen."
+        );
+      }
     },
     [uid, useFirestore]
   );
@@ -89,5 +98,5 @@ export function useNotes() {
     [notes, persist]
   );
 
-  return { notes, addNote, updateNote, deleteNote, loading };
+  return { notes, addNote, updateNote, deleteNote, loading, saveError };
 }
