@@ -12,7 +12,7 @@ const navItems = [
 ];
 
 export function Header() {
-  const { user, signIn, signOutUser } = useAuth();
+  const { user, authError, signIn, signOutUser } = useAuth();
 
   return (
     <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--bg)]/90 backdrop-blur">
@@ -69,6 +69,12 @@ export function Header() {
           )}
         </div>
       </div>
+
+      {authError && (
+        <div className="border-t border-[var(--danger)]/40 bg-[var(--danger)]/10 px-5 py-2 text-xs text-[var(--danger)]">
+          {authError}
+        </div>
+      )}
 
       <nav className="flex items-center gap-1 overflow-x-auto border-t border-[var(--line)] px-5 py-2 md:hidden">
         {navItems.map((item) => (
