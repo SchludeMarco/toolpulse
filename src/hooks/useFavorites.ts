@@ -12,11 +12,13 @@ export function useFavorites() {
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const useFirestore = !isDemoMode && !!db && !!user;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         const raw = localStorage.getItem(localKey(uid));
         if (!cancelled) {
           setFavorites(raw ? JSON.parse(raw) : []);
@@ -24,26 +26,32 @@ export function useFavorites() {
         }
         return;
       }
-      const snap = await getDoc(doc(db, "favorites", uid));
-      if (cancelled) return;
-      setFavorites(snap.exists() ? (snap.data().items as FavoriteEntry[]) : []);
-      setLoading(false);
+      try {
+        const snap = await getDoc(doc(db!, "favorites", uid));
+        if (cancelled) return;
+        setFavorites(snap.exists() ? (snap.data().items as FavoriteEntry[]) : []);
+      } catch (e) {
+        console.error("Merkliste konnte nicht geladen werden:", e);
+        if (!cancelled) setFavorites([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, useFirestore]);
 
   const persist = useCallback(
     async (next: FavoriteEntry[]) => {
       setFavorites(next);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db, "favorites", uid), { items: next });
+      await setDoc(doc(db!, "favorites", uid), { items: next });
     },
-    [uid]
+    [uid, useFirestore]
   );
 
   const toggleFavorite = useCallback(

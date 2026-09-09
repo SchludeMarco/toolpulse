@@ -12,11 +12,13 @@ export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const useFirestore = !isDemoMode && !!db && !!user;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         const raw = localStorage.getItem(localKey(uid));
         if (!cancelled) {
           setNotes(raw ? JSON.parse(raw) : []);
@@ -24,26 +26,32 @@ export function useNotes() {
         }
         return;
       }
-      const snap = await getDoc(doc(db, "notes", uid));
-      if (cancelled) return;
-      setNotes(snap.exists() ? (snap.data().items as Note[]) : []);
-      setLoading(false);
+      try {
+        const snap = await getDoc(doc(db!, "notes", uid));
+        if (cancelled) return;
+        setNotes(snap.exists() ? (snap.data().items as Note[]) : []);
+      } catch (e) {
+        console.error("Notizen konnten nicht geladen werden:", e);
+        if (!cancelled) setNotes([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, useFirestore]);
 
   const persist = useCallback(
     async (next: Note[]) => {
       setNotes(next);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db, "notes", uid), { items: next });
+      await setDoc(doc(db!, "notes", uid), { items: next });
     },
-    [uid]
+    [uid, useFirestore]
   );
 
   const addNote = useCallback(

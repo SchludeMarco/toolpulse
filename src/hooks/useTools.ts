@@ -16,13 +16,19 @@ export function useTools() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const q = query(collection(db!, "tools"), orderBy("lastUpdated", "desc"));
-      const snap = await getDocs(q);
-      if (cancelled) return;
-      const fetched = snap.docs.map((d) => d.data() as Tool);
-      setTools(fetched.length ? fetched : seedTools);
-      if (fetched.length) setLastCuratedAt(fetched[0].lastUpdated);
-      setLoading(false);
+      try {
+        const q = query(collection(db!, "tools"), orderBy("lastUpdated", "desc"));
+        const snap = await getDocs(q);
+        if (cancelled) return;
+        const fetched = snap.docs.map((d) => d.data() as Tool);
+        setTools(fetched.length ? fetched : seedTools);
+        if (fetched.length) setLastCuratedAt(fetched[0].lastUpdated);
+      } catch (e) {
+        console.error("Tools konnten nicht aus Firestore geladen werden:", e);
+        if (!cancelled) setTools(seedTools);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;

@@ -25,11 +25,13 @@ export function usePreferences() {
   const [prefs, setPrefs] = useState<UserPreferences>(defaultPrefs(uid));
   const [loading, setLoading] = useState(true);
 
+  const useFirestore = !isDemoMode && !!db && !!user;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         const raw = localStorage.getItem(localKey(uid));
         if (!cancelled) {
           setPrefs(raw ? JSON.parse(raw) : defaultPrefs(uid));
@@ -37,26 +39,32 @@ export function usePreferences() {
         }
         return;
       }
-      const snap = await getDoc(doc(db, "userPreferences", uid));
-      if (cancelled) return;
-      setPrefs(snap.exists() ? (snap.data() as UserPreferences) : defaultPrefs(uid));
-      setLoading(false);
+      try {
+        const snap = await getDoc(doc(db!, "userPreferences", uid));
+        if (cancelled) return;
+        setPrefs(snap.exists() ? (snap.data() as UserPreferences) : defaultPrefs(uid));
+      } catch (e) {
+        console.error("Einstellungen konnten nicht geladen werden:", e);
+        if (!cancelled) setPrefs(defaultPrefs(uid));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [uid]);
+  }, [uid, useFirestore]);
 
   const save = useCallback(
     async (next: UserPreferences) => {
       setPrefs(next);
-      if (isDemoMode || !db) {
+      if (!useFirestore) {
         localStorage.setItem(localKey(uid), JSON.stringify(next));
         return;
       }
-      await setDoc(doc(db, "userPreferences", uid), next);
+      await setDoc(doc(db!, "userPreferences", uid), next);
     },
-    [uid]
+    [uid, useFirestore]
   );
 
   return { prefs, setPrefs: save, loading };
