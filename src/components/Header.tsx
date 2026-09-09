@@ -7,6 +7,7 @@ const navItems = [
   { to: "/vergleich", label: "Vergleich" },
   { to: "/merkliste", label: "Merkliste" },
   { to: "/digest", label: "Wochen-Digest" },
+  { to: "/notizen", label: "Notizblock" },
   { to: "/einstellungen", label: "Einstellungen" },
 ];
 

@@ -1,16 +1,14 @@
 export type CategoryId =
-  | "ki"
-  | "bilder"
-  | "haushalt"
-  | "essen"
-  | "freizeit"
-  | "kinder";
+  | "llm"
+  | "ki-bild"
+  | "dev-trends"
+  | "design-trends";
 
 export interface Category {
   id: CategoryId;
   label: string;
   description: string;
-  color: string; // css var name, e.g. var(--cat-ai)
+  color: string; // css var name, e.g. var(--cat-llm)
 }
 
 export type PriceTier = "kostenlos" | "freemium" | "abo" | "einmalig";
@@ -59,4 +57,12 @@ export interface CurationRun {
   toolsAdded: number;
   toolsUpdated: number;
   categoriesTouched: CategoryId[];
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
