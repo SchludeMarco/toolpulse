@@ -8,6 +8,7 @@ const navItems = [
   { to: "/merkliste", label: "Merkliste" },
   { to: "/digest", label: "Wochen-Digest" },
   { to: "/notizen", label: "Notizblock" },
+  { to: "/beobachtungen", label: "Beobachtungen" },
   { to: "/einstellungen", label: "Einstellungen" },
 ];
 

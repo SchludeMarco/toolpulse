@@ -121,27 +121,30 @@ function slugify(name) {
     .replace(/(^-|-$)/g, "");
 }
 
-// Sendet eine Push-Benachrichtigung ans "Tool des Tages" — an alle
-// registrierten Geräte aus der Collection `pushSubscriptions`. Räumt dabei
-// Tokens auf, die FCM als ungültig/abgelaufen meldet.
-async function notifyToolOfTheDay(tool) {
-  const subsSnap = await db.collection("pushSubscriptions").get();
+// Sendet eine Push-Benachrichtigung an eine Menge von Uids (Tokens aus
+// `pushSubscriptions`) und räumt dabei Tokens auf, die FCM als
+// ungültig/abgelaufen meldet. `uids: null` bedeutet "alle Nutzer".
+async function sendPush(uids, notification, data) {
+  const subsSnap = uids
+    ? await Promise.all(
+        uids.map((uid) => db.collection("pushSubscriptions").doc(uid).get())
+      )
+    : (await db.collection("pushSubscriptions").get()).docs;
+
   const tokenToUid = new Map();
-  subsSnap.forEach((doc) => {
+  for (const doc of subsSnap) {
+    if (!doc.exists) continue;
     const tokens = doc.data().tokens ?? [];
     for (const token of tokens) tokenToUid.set(token, doc.id);
-  });
+  }
 
   const tokens = [...tokenToUid.keys()];
-  if (tokens.length === 0) return;
+  if (tokens.length === 0) return { successCount: 0, total: 0 };
 
   const response = await admin.messaging().sendEachForMulticast({
     tokens,
-    notification: {
-      title: "🔥 Tool des Tages",
-      body: `${tool.name} — ${tool.tagline}`,
-    },
-    data: { url: tool.url, toolId: tool.id },
+    notification,
+    data,
   });
 
   const staleByUid = new Map();
@@ -166,9 +169,19 @@ async function notifyToolOfTheDay(tool) {
     )
   );
 
-  console.log(
-    `Tool des Tages Push: ${response.successCount}/${tokens.length} zugestellt.`
+  return { successCount: response.successCount, total: tokens.length };
+}
+
+async function notifyToolOfTheDay(tool) {
+  const { successCount, total } = await sendPush(
+    null,
+    {
+      title: "🔥 Tool des Tages",
+      body: `${tool.name} — ${tool.tagline}`,
+    },
+    { url: tool.url, toolId: tool.id }
   );
+  console.log(`Tool des Tages Push: ${successCount}/${total} zugestellt.`);
 }
 
 async function runCuration() {
@@ -244,6 +257,135 @@ async function runCuration() {
   console.log(`Kuratierung abgeschlossen: ${added} neu, ${updated} aktualisiert.`);
 }
 
+const categoryById = (id) => CATEGORIES.find((c) => c.id === id);
+
+const WATCH_SYSTEM_PROMPT = `Du bist ein sorgfältiger Produkt-Scout. Ein \
+Nutzer hat eine Beobachtung für einen Lebensbereich formuliert — eine \
+Bedingung, bei deren Eintreten er sofort benachrichtigt werden möchte. \
+Prüfe per Websuche, ob diese Bedingung GERADE JETZT zutrifft. Antworte \
+AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown, ohne Erklärtext, mit \
+exakt diesen Feldern:
+{
+  "matches": boolean,
+  "toolName": string | null,
+  "headline": string | null (max. 80 Zeichen, auf Deutsch, nur falls matches=true),
+  "description": string | null (2-3 Sätze, auf Deutsch, sachlich, nur falls matches=true),
+  "url": string | null (offizielle Website, nur falls matches=true),
+  "sources": [{"name": string, "url": string}] (mind. 1 falls matches=true, echte URLs aus der Websuche)
+}
+Setze "matches" nur auf true, wenn du die Bedingung über die Websuche mit \
+echten, aktuellen Quellen verifizieren konntest. Im Zweifel: false.`;
+
+async function checkWatchCondition(anthropic, category, watch) {
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2000,
+    system: WATCH_SYSTEM_PROMPT,
+    tools: [{ type: "web_search_20250305", name: "web_search" }],
+    messages: [
+      {
+        role: "user",
+        content: `Bereich: ${category.label}.${
+          category.focus ? ` Fokus: ${category.focus}` : ""
+        } Beobachtung des Nutzers: "${watch.query}". Recherchiere jetzt aktuell im Web und liefere das JSON-Objekt.`,
+      },
+    ],
+  });
+
+  const textBlocks = response.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+
+  const cleaned = textBlocks.replace(/```json|```/g, "").trim();
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (!match) {
+    console.error(`Kein JSON-Objekt in Watch-Antwort für ${watch.id}:`, cleaned);
+    return { matches: false };
+  }
+  try {
+    return JSON.parse(match[0]);
+  } catch (e) {
+    console.error(`JSON-Parse-Fehler für Watch ${watch.id}:`, e);
+    return { matches: false };
+  }
+}
+
+const WATCH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Prüft alle aktiven Beobachtungen aller Nutzer (Firestore-Collection
+// `watches/{uid}` mit Feld `items: Watch[]`) und benachrichtigt sofort per
+// Push, sobald eine Bedingung zutrifft. Ausgelöste Beobachtungen bleiben
+// aktiv, lösen aber frühestens nach WATCH_COOLDOWN_MS erneut aus.
+async function checkWatches() {
+  const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const watchesSnap = await db.collection("watches").get();
+
+  let checked = 0;
+  let triggered = 0;
+
+  for (const userDoc of watchesSnap.docs) {
+    const uid = userDoc.id;
+    const items = userDoc.data().items ?? [];
+    let changed = false;
+
+    const nextItems = await Promise.all(
+      items.map(async (watch) => {
+        if (!watch.active) return watch;
+        if (
+          watch.lastTriggeredAt &&
+          now.getTime() - new Date(watch.lastTriggeredAt).getTime() < WATCH_COOLDOWN_MS
+        ) {
+          return watch;
+        }
+
+        const category = categoryById(watch.categoryId);
+        if (!category) return watch;
+
+        checked++;
+        let result;
+        try {
+          result = await checkWatchCondition(anthropic, category, watch);
+        } catch (e) {
+          console.error(`Watch-Prüfung fehlgeschlagen für ${watch.id}:`, e);
+          return watch;
+        }
+
+        changed = true;
+        if (!result.matches) {
+          return { ...watch, lastCheckedAt: nowIso };
+        }
+
+        triggered++;
+        try {
+          await sendPush(
+            [uid],
+            {
+              title: `🚨 ${category.label}: ${result.headline ?? watch.query}`,
+              body: result.description ?? "",
+            },
+            { url: result.url ?? "", watchId: watch.id }
+          );
+        } catch (e) {
+          console.error(`Push-Versand für Watch ${watch.id} fehlgeschlagen:`, e);
+        }
+
+        return { ...watch, lastCheckedAt: nowIso, lastTriggeredAt: nowIso };
+      })
+    );
+
+    if (changed) {
+      await db.collection("watches").doc(uid).set({ items: nextItems });
+    }
+  }
+
+  console.log(
+    `Watch-Check abgeschlossen: ${checked} geprüft, ${triggered} ausgelöst.`
+  );
+}
+
 // Läuft täglich um 06:00 Europe/Berlin.
 exports.dailyCuration = onSchedule(
   {
@@ -265,6 +407,34 @@ exports.runCurationNow = onRequest(
     try {
       await runCuration();
       res.status(200).send("Kuratierung ausgeführt.");
+    } catch (e) {
+      console.error(e);
+      res.status(500).send(String(e));
+    }
+  }
+);
+
+// Prüft alle 6 Stunden die Beobachtungen (Watch-Alerts) aller Nutzer.
+exports.checkWatchesAlerts = onSchedule(
+  {
+    schedule: "0 */6 * * *",
+    timeZone: "Europe/Berlin",
+    secrets: [ANTHROPIC_API_KEY],
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await checkWatches();
+  }
+);
+
+// Manueller Trigger zum Testen: HTTPS-Aufruf statt auf den Zeitplan zu warten.
+exports.checkWatchesNow = onRequest(
+  { secrets: [ANTHROPIC_API_KEY] },
+  async (req, res) => {
+    try {
+      await checkWatches();
+      res.status(200).send("Watch-Check ausgeführt.");
     } catch (e) {
       console.error(e);
       res.status(500).send(String(e));

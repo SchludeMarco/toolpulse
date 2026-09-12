@@ -66,3 +66,13 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Watch {
+  id: string;
+  categoryId: CategoryId;
+  query: string; // Freitext-Bedingung, z.B. "Ein neues Tool wird im IT-Sektor plötzlich sehr viel genutzt"
+  active: boolean;
+  createdAt: string;
+  lastCheckedAt?: string;
+  lastTriggeredAt?: string;
+}

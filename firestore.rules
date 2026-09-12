@@ -34,5 +34,12 @@ service cloud.firestore {
     match /pushSubscriptions/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // Beobachtungen (Watch-Alerts): eigene Bedingungen pro Bereich, nur für
+    // den jeweiligen Nutzer sichtbar. Die Cloud Function (Admin-SDK) liest
+    // alle, um sie periodisch zu prüfen, und umgeht dabei diese Regeln.
+    match /watches/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }
