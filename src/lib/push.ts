@@ -39,9 +39,13 @@ async function registerServiceWorker(): Promise<ServiceWorkerRegistration> {
   for (const [key, value] of Object.entries(firebaseConfig)) {
     if (value) params.set(key, value);
   }
-  return navigator.serviceWorker.register(
+  const registration = await navigator.serviceWorker.register(
     `/firebase-messaging-sw.js?${params.toString()}`
   );
+  // register() resolves as soon as the worker starts installing, not once
+  // it's active — getToken() requires an active worker, so wait for that.
+  await navigator.serviceWorker.ready;
+  return registration;
 }
 
 export async function getPushToken(): Promise<string> {

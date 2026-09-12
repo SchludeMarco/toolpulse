@@ -7,3 +7,5 @@ firebase-debug.log
 firebase-debug.*.log
 .firebase/
 *.tsbuildinfo
+.vercel
+.env*
