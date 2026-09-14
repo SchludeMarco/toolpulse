@@ -4,16 +4,36 @@ import { useTools } from "../hooks/useTools";
 import { usePreferences } from "../hooks/usePreferences";
 import { useFavorites } from "../hooks/useFavorites";
 import { useCompare } from "../context/CompareContext";
+import { useAuth } from "../context/AuthContext";
 import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
 import { relativeDe } from "../lib/time";
+import { triggerCurationNow } from "../lib/functions";
 import type { CategoryId, PriceTier } from "../types";
 
 export function FeedPage() {
-  const { tools, loading, lastCuratedAt } = useTools();
+  const { tools, loading, lastCuratedAt, refetch } = useTools();
   const { prefs, setPrefs } = usePreferences();
   const { favorites, toggleFavorite } = useFavorites();
   const { selected, toggle } = useCompare();
+  const { isDemoMode } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
+  const refreshNow = async () => {
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      await triggerCurationNow();
+      await refetch();
+    } catch (e) {
+      setRefreshError(
+        e instanceof Error ? e.message : "Aktualisierung fehlgeschlagen."
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const [activeCategory, setActiveCategory] = useState<CategoryId | "alle">(
     "alle"
@@ -98,6 +118,24 @@ export function FeedPage() {
           ))}
         </div>
       )}
+
+      <div className="mt-8 flex flex-col items-center gap-2 border-t border-[var(--line)] pt-6">
+        <button
+          onClick={refreshNow}
+          disabled={isDemoMode || refreshing}
+          className="focus-ring rounded-md border border-[var(--line)] px-3.5 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {refreshing ? "Aktualisiere … (kann bis zu einer Minute dauern)" : "Jetzt aktualisieren"}
+        </button>
+        {isDemoMode && (
+          <p className="text-xs text-[var(--text-muted)]">
+            Manuelle Aktualisierung erfordert ein verbundenes Firebase-Projekt.
+          </p>
+        )}
+        {refreshError && (
+          <p className="text-xs text-[var(--danger)]">{refreshError}</p>
+        )}
+      </div>
     </div>
   );
 }

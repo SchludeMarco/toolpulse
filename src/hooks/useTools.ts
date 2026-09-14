@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db, isDemoMode } from "../lib/firebase";
 import { seedTools } from "../data/seedTools";
@@ -11,29 +11,26 @@ export function useTools() {
     isDemoMode ? new Date().toISOString() : ""
   );
 
-  useEffect(() => {
+  const fetchTools = useCallback(async () => {
     if (isDemoMode || !db) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const q = query(collection(db!, "tools"), orderBy("lastUpdated", "desc"));
-        const snap = await getDocs(q);
-        if (cancelled) return;
-        const fetched = snap.docs.map((d) => d.data() as Tool);
-        setTools(fetched.length ? fetched : seedTools);
-        if (fetched.length) setLastCuratedAt(fetched[0].lastUpdated);
-      } catch (e) {
-        console.error("Tools konnten nicht aus Firestore geladen werden:", e);
-        if (!cancelled) setTools(seedTools);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setLoading(true);
+    try {
+      const q = query(collection(db, "tools"), orderBy("lastUpdated", "desc"));
+      const snap = await getDocs(q);
+      const fetched = snap.docs.map((d) => d.data() as Tool);
+      setTools(fetched.length ? fetched : seedTools);
+      if (fetched.length) setLastCuratedAt(fetched[0].lastUpdated);
+    } catch (e) {
+      console.error("Tools konnten nicht aus Firestore geladen werden:", e);
+      setTools(seedTools);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { tools, loading, lastCuratedAt };
+  useEffect(() => {
+    fetchTools();
+  }, [fetchTools]);
+
+  return { tools, loading, lastCuratedAt, refetch: fetchTools };
 }

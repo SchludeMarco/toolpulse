@@ -400,9 +400,11 @@ exports.dailyCuration = onSchedule(
   }
 );
 
-// Manueller Trigger zum Testen: HTTPS-Aufruf statt auf den Zeitplan zu warten.
+// Manueller Trigger: HTTPS-Aufruf statt auf den Zeitplan zu warten. `cors:
+// true` erlaubt den Aufruf per fetch() aus der Web-App heraus (z.B. der
+// "Jetzt aktualisieren"-Button im Feed).
 exports.runCurationNow = onRequest(
-  { secrets: [ANTHROPIC_API_KEY] },
+  { secrets: [ANTHROPIC_API_KEY], cors: true, timeoutSeconds: 300, memory: "512MiB" },
   async (req, res) => {
     try {
       await runCuration();
@@ -430,7 +432,7 @@ exports.checkWatchesAlerts = onSchedule(
 
 // Manueller Trigger zum Testen: HTTPS-Aufruf statt auf den Zeitplan zu warten.
 exports.checkWatchesNow = onRequest(
-  { secrets: [ANTHROPIC_API_KEY] },
+  { secrets: [ANTHROPIC_API_KEY], cors: true, timeoutSeconds: 300, memory: "512MiB" },
   async (req, res) => {
     try {
       await checkWatches();
