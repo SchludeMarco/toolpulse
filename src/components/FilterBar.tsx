@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { categories } from "../data/categories";
 import type { CategoryId, PriceTier } from "../types";
 
@@ -24,6 +25,8 @@ export function FilterBar({
   onPriceFilterChange,
   categoryCounts,
 }: Props) {
+  const [countsExpanded, setCountsExpanded] = useState(false);
+
   const togglePrice = (p: PriceTier) => {
     if (priceFilter.includes(p)) {
       onPriceFilterChange(priceFilter.filter((x) => x !== p));
@@ -65,11 +68,41 @@ export function FilterBar({
       </div>
 
       {activeCategory === "alle" && categoryCounts && (
-        <p className="text-xs text-[var(--text-muted)]">
-          {categories
-            .map((c) => `${c.label} (${categoryCounts[c.id] ?? 0})`)
-            .join(" · ")}
-        </p>
+        <div>
+          <button
+            onClick={() => setCountsExpanded((e) => !e)}
+            aria-expanded={countsExpanded}
+            className="focus-ring flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
+          >
+            <svg
+              className={`h-3 w-3 shrink-0 transition-transform ${
+                countsExpanded ? "rotate-90" : ""
+              }`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+            Beiträge je Bereich
+          </button>
+          {countsExpanded && (
+            <ul className="mt-1.5 flex flex-col gap-1 pl-4 text-xs text-[var(--text-muted)]">
+              {categories.map((c) => (
+                <li key={c.id} className="flex items-center gap-1.5">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: c.color }}
+                  />
+                  {c.label} ({categoryCounts[c.id] ?? 0})
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
