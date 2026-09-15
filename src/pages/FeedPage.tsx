@@ -7,6 +7,7 @@ import { useCompare } from "../context/CompareContext";
 import { useAuth } from "../context/AuthContext";
 import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
+import { categories } from "../data/categories";
 import { relativeDe } from "../lib/time";
 import { triggerCurationNow } from "../lib/functions";
 import type { CategoryId, PriceTier, Tool } from "../types";
@@ -41,10 +42,25 @@ export function FeedPage() {
   const [priceFilter, setPriceFilter] = useState<PriceTier[]>(
     prefs.priceFilter ?? []
   );
+  const [expandedCategories, setExpandedCategories] = useState<
+    Set<CategoryId>
+  >(new Set());
 
   const updatePriceFilter = (p: PriceTier[]) => {
     setPriceFilter(p);
     setPrefs({ ...prefs, priceFilter: p, updatedAt: new Date().toISOString() });
+  };
+
+  const toggleCategoryExpanded = (id: CategoryId) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const toolsMatchingNonCategoryFilters = useMemo(() => {
@@ -59,21 +75,22 @@ export function FeedPage() {
     for (const t of toolsMatchingNonCategoryFilters) {
       (grouped[t.categoryId] ??= []).push(t);
     }
+    for (const list of Object.values(grouped)) {
+      list.sort(
+        (a, b) =>
+          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+      );
+    }
     return grouped;
   }, [toolsMatchingNonCategoryFilters]);
 
-  const visibleTools = useMemo(() => {
-    return toolsMatchingNonCategoryFilters
-      .filter((t) => activeCategory === "alle" || t.categoryId === activeCategory)
-      .sort((a, b) => {
-        const wa = prefs.categoryWeights[a.categoryId] ?? 2;
-        const wb = prefs.categoryWeights[b.categoryId] ?? 2;
-        if (wa !== wb) return wb - wa;
-        return (
-          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
-        );
-      });
-  }, [toolsMatchingNonCategoryFilters, activeCategory, prefs]);
+  const visibleCategories = categories.filter(
+    (c) => activeCategory === "alle" || c.id === activeCategory
+  );
+  const totalVisibleTools = visibleCategories.reduce(
+    (sum, c) => sum + (categoryTools[c.id]?.length ?? 0),
+    0
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
@@ -105,30 +122,68 @@ export function FeedPage() {
           onCategoryChange={setActiveCategory}
           priceFilter={priceFilter}
           onPriceFilterChange={updatePriceFilter}
-          categoryTools={categoryTools}
         />
       </div>
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Lade Tools …</p>
-      ) : visibleTools.length === 0 ? (
+      ) : totalVisibleTools === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--line)] p-8 text-center text-sm text-[var(--text-muted)]">
           Keine Tools passen zu diesen Filtern. Passe die Preis- oder
           Bereichsauswahl an, oder aktiviere weitere Bereiche in den
           Einstellungen.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleTools.map((tool) => (
-            <ToolCard
-              key={tool.id}
-              tool={tool}
-              isFavorite={favorites.some((f) => f.toolId === tool.id)}
-              onToggleFavorite={toggleFavorite}
-              onSelectCompare={toggle}
-              compareSelected={selected.includes(tool.id)}
-            />
-          ))}
+        <div className="flex flex-col gap-2">
+          {visibleCategories.map((c) => {
+            const catTools = categoryTools[c.id] ?? [];
+            const isOpen =
+              expandedCategories.has(c.id) || activeCategory === c.id;
+            return (
+              <div key={c.id}>
+                <button
+                  onClick={() => toggleCategoryExpanded(c.id)}
+                  aria-expanded={isOpen}
+                  className="focus-ring flex items-center gap-2 rounded-md py-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+                >
+                  <svg
+                    className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                      isOpen ? "rotate-90" : ""
+                    }`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: c.color }}
+                  />
+                  {c.label} ({catTools.length})
+                </button>
+                {isOpen && catTools.length > 0 && (
+                  <div className="ml-1.5 mb-2 rounded-lg border-l-2 bg-[var(--surface-raised)] p-3 pl-4" style={{ borderColor: c.color }}>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {catTools.map((tool) => (
+                        <ToolCard
+                          key={tool.id}
+                          tool={tool}
+                          isFavorite={favorites.some((f) => f.toolId === tool.id)}
+                          onToggleFavorite={toggleFavorite}
+                          onSelectCompare={toggle}
+                          compareSelected={selected.includes(tool.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
