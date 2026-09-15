@@ -212,7 +212,7 @@ export function FeedPage() {
                               href={tool.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="focus-ring rounded-md py-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline"
+                              className="focus-ring select-none rounded-md py-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline"
                             >
                               {tool.name}
                             </a>
