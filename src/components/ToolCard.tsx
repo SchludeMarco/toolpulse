@@ -56,7 +56,16 @@ export function ToolCard({
       </div>
 
       <div>
-        <h3 className="text-base font-semibold">{tool.name}</h3>
+        <h3 className="text-base font-semibold">
+          <a
+            href={tool.url}
+            target="_blank"
+            rel="noreferrer"
+            className="focus-ring select-none rounded-md hover:underline"
+          >
+            {tool.name}
+          </a>
+        </h3>
         <p className="mt-0.5 text-sm text-[var(--text-muted)]">
           {tool.tagline}
         </p>
