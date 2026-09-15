@@ -134,9 +134,13 @@ export function FilterBar({
                     {c.label} ({tools.length})
                   </button>
                   {isOpen && tools.length > 0 && (
-                    <ul className="ml-1.5 mt-1 flex flex-col gap-1 border-l border-[var(--line)] pl-4 text-xs text-[var(--text-muted)]">
+                    <ul
+                      className="ml-1.5 mt-1 flex flex-col gap-1 rounded-md border-l-2 bg-[var(--surface-raised)] py-1.5 pl-3 pr-2 text-xs text-[var(--text-muted)]"
+                      style={{ borderColor: c.color }}
+                    >
                       {tools.map((t) => (
-                        <li key={t.id}>
+                        <li key={t.id} className="flex items-baseline gap-1.5">
+                          <span aria-hidden="true">–</span>
                           <a
                             href={t.url}
                             target="_blank"
