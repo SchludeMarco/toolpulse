@@ -1,13 +1,11 @@
-import { useState } from "react";
 import { categories } from "../data/categories";
-import type { CategoryId, PriceTier, Tool } from "../types";
+import type { CategoryId, PriceTier } from "../types";
 
 interface Props {
   activeCategory: CategoryId | "alle";
   onCategoryChange: (c: CategoryId | "alle") => void;
   priceFilter: PriceTier[];
   onPriceFilterChange: (p: PriceTier[]) => void;
-  categoryTools?: Partial<Record<CategoryId, Tool[]>>;
 }
 
 const priceOptions: PriceTier[] = ["kostenlos", "freemium", "abo", "einmalig"];
@@ -23,30 +21,13 @@ export function FilterBar({
   onCategoryChange,
   priceFilter,
   onPriceFilterChange,
-  categoryTools,
 }: Props) {
-  const [expandedCounts, setExpandedCounts] = useState<Set<CategoryId>>(
-    new Set()
-  );
-
   const togglePrice = (p: PriceTier) => {
     if (priceFilter.includes(p)) {
       onPriceFilterChange(priceFilter.filter((x) => x !== p));
     } else {
       onPriceFilterChange([...priceFilter, p]);
     }
-  };
-
-  const toggleCountExpanded = (id: CategoryId) => {
-    setExpandedCounts((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
   };
 
   return (
@@ -97,68 +78,6 @@ export function FilterBar({
           </button>
         ))}
       </div>
-
-      {activeCategory === "alle" && categoryTools && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--text-muted)]">
-            Beiträge je Bereich:
-          </span>
-          <ul className="flex flex-col gap-1">
-            {categories.map((c) => {
-              const tools = categoryTools[c.id] ?? [];
-              const isOpen = expandedCounts.has(c.id);
-              return (
-                <li key={c.id}>
-                  <button
-                    onClick={() => toggleCountExpanded(c.id)}
-                    aria-expanded={isOpen}
-                    className="focus-ring flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
-                  >
-                    <svg
-                      className={`h-3 w-3 shrink-0 transition-transform ${
-                        isOpen ? "rotate-90" : ""
-                      }`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
-                    <span
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: c.color }}
-                    />
-                    {c.label} ({tools.length})
-                  </button>
-                  {isOpen && tools.length > 0 && (
-                    <ul
-                      className="ml-1.5 mt-1 flex flex-col gap-1 rounded-md border-l-2 bg-[var(--surface-raised)] py-1.5 pl-3 pr-2 text-xs text-[var(--text-muted)]"
-                      style={{ borderColor: c.color }}
-                    >
-                      {tools.map((t) => (
-                        <li key={t.id} className="flex items-baseline gap-1.5">
-                          <span aria-hidden="true">–</span>
-                          <a
-                            href={t.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="focus-ring hover:text-[var(--text)] hover:underline"
-                          >
-                            {t.name}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
