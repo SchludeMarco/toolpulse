@@ -9,7 +9,7 @@ import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
 import { relativeDe } from "../lib/time";
 import { triggerCurationNow } from "../lib/functions";
-import type { CategoryId, PriceTier } from "../types";
+import type { CategoryId, PriceTier, Tool } from "../types";
 
 export function FeedPage() {
   const { tools, loading, lastCuratedAt, refetch } = useTools();
@@ -54,12 +54,12 @@ export function FeedPage() {
       .filter((t) => (prefs.categoryWeights[t.categoryId] ?? 2) > 0);
   }, [tools, priceFilter, prefs]);
 
-  const categoryCounts = useMemo(() => {
-    const counts = {} as Record<CategoryId, number>;
+  const categoryTools = useMemo(() => {
+    const grouped = {} as Record<CategoryId, Tool[]>;
     for (const t of toolsMatchingNonCategoryFilters) {
-      counts[t.categoryId] = (counts[t.categoryId] ?? 0) + 1;
+      (grouped[t.categoryId] ??= []).push(t);
     }
-    return counts;
+    return grouped;
   }, [toolsMatchingNonCategoryFilters]);
 
   const visibleTools = useMemo(() => {
@@ -105,7 +105,7 @@ export function FeedPage() {
           onCategoryChange={setActiveCategory}
           priceFilter={priceFilter}
           onPriceFilterChange={updatePriceFilter}
-          categoryCounts={categoryCounts}
+          categoryTools={categoryTools}
         />
       </div>
 
