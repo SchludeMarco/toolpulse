@@ -187,26 +187,36 @@ export function FeedPage() {
                       const toolOpen = expandedTools.has(tool.id);
                       return (
                         <div key={tool.id}>
-                          <button
-                            onClick={() => toggleToolExpanded(tool.id)}
-                            aria-expanded={toolOpen}
-                            className="focus-ring flex items-center gap-1.5 rounded-md py-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
-                          >
-                            <svg
-                              className={`h-3 w-3 shrink-0 transition-transform ${
-                                toolOpen ? "rotate-90" : ""
-                              }`}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => toggleToolExpanded(tool.id)}
+                              aria-expanded={toolOpen}
+                              aria-label={`Details zu ${tool.name}`}
+                              className="focus-ring rounded-md p-1 text-[var(--text-muted)] hover:text-[var(--text)]"
                             >
-                              <path d="M9 6l6 6-6 6" />
-                            </svg>
-                            {tool.name}
-                          </button>
+                              <svg
+                                className={`h-3 w-3 shrink-0 transition-transform ${
+                                  toolOpen ? "rotate-90" : ""
+                                }`}
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M9 6l6 6-6 6" />
+                              </svg>
+                            </button>
+                            <a
+                              href={tool.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="focus-ring rounded-md py-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline"
+                            >
+                              {tool.name}
+                            </a>
+                          </div>
                           {toolOpen && (
                             <div className="ml-1.5 max-w-md pl-4">
                               <ToolCard
