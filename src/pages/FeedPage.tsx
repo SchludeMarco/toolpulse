@@ -52,6 +52,13 @@ export function FeedPage() {
     setPrefs({ ...prefs, priceFilter: p, updatedAt: new Date().toISOString() });
   };
 
+  const handleCategoryChange = (c: CategoryId | "alle") => {
+    setActiveCategory(c);
+    if (c !== "alle") {
+      setExpandedCategories((prev) => new Set(prev).add(c));
+    }
+  };
+
   const toggleCategoryExpanded = (id: CategoryId) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev);
@@ -132,7 +139,7 @@ export function FeedPage() {
       <div className="mb-6">
         <FilterBar
           activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
+          onCategoryChange={handleCategoryChange}
           priceFilter={priceFilter}
           onPriceFilterChange={updatePriceFilter}
         />
@@ -150,8 +157,7 @@ export function FeedPage() {
         <div className="flex flex-col gap-2">
           {visibleCategories.map((c) => {
             const catTools = categoryTools[c.id] ?? [];
-            const isOpen =
-              expandedCategories.has(c.id) || activeCategory === c.id;
+            const isOpen = expandedCategories.has(c.id);
             return (
               <div key={c.id}>
                 <button
