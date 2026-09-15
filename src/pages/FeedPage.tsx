@@ -47,12 +47,24 @@ export function FeedPage() {
     setPrefs({ ...prefs, priceFilter: p, updatedAt: new Date().toISOString() });
   };
 
-  const visibleTools = useMemo(() => {
+  const toolsMatchingNonCategoryFilters = useMemo(() => {
     return tools
-      .filter((t) => activeCategory === "alle" || t.categoryId === activeCategory)
       .filter((t) => priceFilter.length === 0 || priceFilter.includes(t.priceTier))
       .filter((t) => t.trustScore >= prefs.minTrustScore)
-      .filter((t) => (prefs.categoryWeights[t.categoryId] ?? 2) > 0)
+      .filter((t) => (prefs.categoryWeights[t.categoryId] ?? 2) > 0);
+  }, [tools, priceFilter, prefs]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = {} as Record<CategoryId, number>;
+    for (const t of toolsMatchingNonCategoryFilters) {
+      counts[t.categoryId] = (counts[t.categoryId] ?? 0) + 1;
+    }
+    return counts;
+  }, [toolsMatchingNonCategoryFilters]);
+
+  const visibleTools = useMemo(() => {
+    return toolsMatchingNonCategoryFilters
+      .filter((t) => activeCategory === "alle" || t.categoryId === activeCategory)
       .sort((a, b) => {
         const wa = prefs.categoryWeights[a.categoryId] ?? 2;
         const wb = prefs.categoryWeights[b.categoryId] ?? 2;
@@ -61,7 +73,7 @@ export function FeedPage() {
           new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
         );
       });
-  }, [tools, activeCategory, priceFilter, prefs]);
+  }, [toolsMatchingNonCategoryFilters, activeCategory, prefs]);
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
@@ -93,6 +105,7 @@ export function FeedPage() {
           onCategoryChange={setActiveCategory}
           priceFilter={priceFilter}
           onPriceFilterChange={updatePriceFilter}
+          categoryCounts={categoryCounts}
         />
       </div>
 

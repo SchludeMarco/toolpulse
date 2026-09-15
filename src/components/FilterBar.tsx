@@ -6,6 +6,7 @@ interface Props {
   onCategoryChange: (c: CategoryId | "alle") => void;
   priceFilter: PriceTier[];
   onPriceFilterChange: (p: PriceTier[]) => void;
+  categoryCounts?: Partial<Record<CategoryId, number>>;
 }
 
 const priceOptions: PriceTier[] = ["kostenlos", "freemium", "abo", "einmalig"];
@@ -21,6 +22,7 @@ export function FilterBar({
   onCategoryChange,
   priceFilter,
   onPriceFilterChange,
+  categoryCounts,
 }: Props) {
   const togglePrice = (p: PriceTier) => {
     if (priceFilter.includes(p)) {
@@ -61,6 +63,14 @@ export function FilterBar({
           </button>
         ))}
       </div>
+
+      {activeCategory === "alle" && categoryCounts && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {categories
+            .map((c) => `${c.label} (${categoryCounts[c.id] ?? 0})`)
+            .join(" · ")}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-[var(--text-muted)]">Preis:</span>
