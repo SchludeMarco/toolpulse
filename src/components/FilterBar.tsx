@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { categories } from "../data/categories";
-import type { CategoryId, PriceTier } from "../types";
+import type { CategoryId, PriceTier, Tool } from "../types";
 
 interface Props {
   activeCategory: CategoryId | "alle";
   onCategoryChange: (c: CategoryId | "alle") => void;
   priceFilter: PriceTier[];
   onPriceFilterChange: (p: PriceTier[]) => void;
-  categoryCounts?: Partial<Record<CategoryId, number>>;
+  categoryTools?: Partial<Record<CategoryId, Tool[]>>;
 }
 
 const priceOptions: PriceTier[] = ["kostenlos", "freemium", "abo", "einmalig"];
@@ -23,7 +23,7 @@ export function FilterBar({
   onCategoryChange,
   priceFilter,
   onPriceFilterChange,
-  categoryCounts,
+  categoryTools,
 }: Props) {
   const [expandedCounts, setExpandedCounts] = useState<Set<CategoryId>>(
     new Set()
@@ -98,13 +98,14 @@ export function FilterBar({
         ))}
       </div>
 
-      {activeCategory === "alle" && categoryCounts && (
+      {activeCategory === "alle" && categoryTools && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-[var(--text-muted)]">
             Beiträge je Bereich:
           </span>
           <ul className="flex flex-col gap-1">
             {categories.map((c) => {
+              const tools = categoryTools[c.id] ?? [];
               const isOpen = expandedCounts.has(c.id);
               return (
                 <li key={c.id}>
@@ -130,9 +131,24 @@ export function FilterBar({
                       className="h-1.5 w-1.5 rounded-full"
                       style={{ background: c.color }}
                     />
-                    {c.label}
-                    {isOpen && ` (${categoryCounts[c.id] ?? 0})`}
+                    {c.label} ({tools.length})
                   </button>
+                  {isOpen && tools.length > 0 && (
+                    <ul className="mt-1 flex flex-col gap-1 pl-7 text-xs text-[var(--text-muted)]">
+                      {tools.map((t) => (
+                        <li key={t.id}>
+                          <a
+                            href={t.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="focus-ring hover:text-[var(--text)] hover:underline"
+                          >
+                            {t.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}
