@@ -134,7 +134,7 @@ export function FilterBar({
                     {c.label} ({tools.length})
                   </button>
                   {isOpen && tools.length > 0 && (
-                    <ul className="mt-1 flex flex-col gap-1 pl-7 text-xs text-[var(--text-muted)]">
+                    <ul className="ml-1.5 mt-1 flex flex-col gap-1 border-l border-[var(--line)] pl-4 text-xs text-[var(--text-muted)]">
                       {tools.map((t) => (
                         <li key={t.id}>
                           <a
