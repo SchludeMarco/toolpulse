@@ -45,6 +45,7 @@ export function FeedPage() {
   const [expandedCategories, setExpandedCategories] = useState<
     Set<CategoryId>
   >(new Set());
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   const updatePriceFilter = (p: PriceTier[]) => {
     setPriceFilter(p);
@@ -53,6 +54,18 @@ export function FeedPage() {
 
   const toggleCategoryExpanded = (id: CategoryId) => {
     setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleToolExpanded = (id: string) => {
+    setExpandedTools((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -166,19 +179,50 @@ export function FeedPage() {
                   {c.label} ({catTools.length})
                 </button>
                 {isOpen && catTools.length > 0 && (
-                  <div className="ml-1.5 mb-2 rounded-lg border-l-2 bg-[var(--surface-raised)] p-3 pl-4" style={{ borderColor: c.color }}>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {catTools.map((tool) => (
-                        <ToolCard
-                          key={tool.id}
-                          tool={tool}
-                          isFavorite={favorites.some((f) => f.toolId === tool.id)}
-                          onToggleFavorite={toggleFavorite}
-                          onSelectCompare={toggle}
-                          compareSelected={selected.includes(tool.id)}
-                        />
-                      ))}
-                    </div>
+                  <div
+                    className="ml-1.5 mb-2 flex flex-col gap-1 rounded-lg border-l-2 bg-[var(--surface-raised)] p-3 pl-4"
+                    style={{ borderColor: c.color }}
+                  >
+                    {catTools.map((tool) => {
+                      const toolOpen = expandedTools.has(tool.id);
+                      return (
+                        <div key={tool.id}>
+                          <button
+                            onClick={() => toggleToolExpanded(tool.id)}
+                            aria-expanded={toolOpen}
+                            className="focus-ring flex items-center gap-1.5 rounded-md py-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+                          >
+                            <svg
+                              className={`h-3 w-3 shrink-0 transition-transform ${
+                                toolOpen ? "rotate-90" : ""
+                              }`}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M9 6l6 6-6 6" />
+                            </svg>
+                            {tool.name}
+                          </button>
+                          {toolOpen && (
+                            <div className="ml-1.5 max-w-md pl-4">
+                              <ToolCard
+                                tool={tool}
+                                isFavorite={favorites.some(
+                                  (f) => f.toolId === tool.id
+                                )}
+                                onToggleFavorite={toggleFavorite}
+                                onSelectCompare={toggle}
+                                compareSelected={selected.includes(tool.id)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
