@@ -8,9 +8,9 @@ import { useAuth } from "../context/AuthContext";
 import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
 import { categories } from "../data/categories";
-import { relativeDe } from "../lib/time";
+import { matchesAgeFilter, relativeDe } from "../lib/time";
 import { triggerCurationNow } from "../lib/functions";
-import type { CategoryId, PriceTier, Tool } from "../types";
+import type { AgeFilter, CategoryId, PriceTier, Tool } from "../types";
 
 export function FeedPage() {
   const { tools, loading, lastCuratedAt, refetch } = useTools();
@@ -42,6 +42,9 @@ export function FeedPage() {
   const [priceFilter, setPriceFilter] = useState<PriceTier[]>(
     prefs.priceFilter ?? []
   );
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>(
+    prefs.ageFilter ?? "alle"
+  );
   const [expandedCategories, setExpandedCategories] = useState<
     Set<CategoryId>
   >(new Set());
@@ -50,6 +53,11 @@ export function FeedPage() {
   const updatePriceFilter = (p: PriceTier[]) => {
     setPriceFilter(p);
     setPrefs({ ...prefs, priceFilter: p, updatedAt: new Date().toISOString() });
+  };
+
+  const updateAgeFilter = (a: AgeFilter) => {
+    setAgeFilter(a);
+    setPrefs({ ...prefs, ageFilter: a, updatedAt: new Date().toISOString() });
   };
 
   const handleCategoryChange = (c: CategoryId | "alle") => {
@@ -86,9 +94,10 @@ export function FeedPage() {
   const toolsMatchingNonCategoryFilters = useMemo(() => {
     return tools
       .filter((t) => priceFilter.length === 0 || priceFilter.includes(t.priceTier))
+      .filter((t) => matchesAgeFilter(t.lastUpdated, ageFilter))
       .filter((t) => t.trustScore >= prefs.minTrustScore)
       .filter((t) => (prefs.categoryWeights[t.categoryId] ?? 2) > 0);
-  }, [tools, priceFilter, prefs]);
+  }, [tools, priceFilter, ageFilter, prefs]);
 
   const categoryTools = useMemo(() => {
     const grouped = {} as Record<CategoryId, Tool[]>;
@@ -142,6 +151,8 @@ export function FeedPage() {
           onCategoryChange={handleCategoryChange}
           priceFilter={priceFilter}
           onPriceFilterChange={updatePriceFilter}
+          ageFilter={ageFilter}
+          onAgeFilterChange={updateAgeFilter}
         />
       </div>
 
@@ -149,8 +160,8 @@ export function FeedPage() {
         <p className="text-sm text-[var(--text-muted)]">Lade Tools …</p>
       ) : totalVisibleTools === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--line)] p-8 text-center text-sm text-[var(--text-muted)]">
-          Keine Tools passen zu diesen Filtern. Passe die Preis- oder
-          Bereichsauswahl an, oder aktiviere weitere Bereiche in den
+          Keine Tools passen zu diesen Filtern. Passe die Preis-, Alters-
+          oder Bereichsauswahl an, oder aktiviere weitere Bereiche in den
           Einstellungen.
         </div>
       ) : (
@@ -222,6 +233,9 @@ export function FeedPage() {
                             >
                               {tool.name}
                             </a>
+                            <span className="shrink-0 text-xs text-[var(--text-muted)] opacity-70">
+                              · {relativeDe(tool.lastUpdated)}
+                            </span>
                           </div>
                           {toolOpen && (
                             <div className="ml-1.5 max-w-md pl-4">
