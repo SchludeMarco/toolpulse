@@ -1,3 +1,5 @@
+import type { AgeFilter } from "../types";
+
 export function relativeDe(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
@@ -21,4 +23,23 @@ export function formatDateDe(iso: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Prüft, ob ein Zeitpunkt (z.B. letzter Fund) in den gewählten Alters-Bereich fällt. */
+export function matchesAgeFilter(iso: string, filter: AgeFilter): boolean {
+  if (filter === "alle") return true;
+  const age = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(age)) return filter === "aelter";
+  switch (filter) {
+    case "24h":
+      return age <= DAY_MS;
+    case "7d":
+      return age <= 7 * DAY_MS;
+    case "30d":
+      return age <= 30 * DAY_MS;
+    case "aelter":
+      return age > 30 * DAY_MS;
+  }
 }

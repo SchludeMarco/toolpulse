@@ -1,11 +1,13 @@
 import { categories } from "../data/categories";
-import type { CategoryId, PriceTier } from "../types";
+import type { AgeFilter, CategoryId, PriceTier } from "../types";
 
 interface Props {
   activeCategory: CategoryId | "alle";
   onCategoryChange: (c: CategoryId | "alle") => void;
   priceFilter: PriceTier[];
   onPriceFilterChange: (p: PriceTier[]) => void;
+  ageFilter: AgeFilter;
+  onAgeFilterChange: (a: AgeFilter) => void;
 }
 
 const priceOptions: PriceTier[] = ["kostenlos", "freemium", "abo", "einmalig"];
@@ -16,11 +18,21 @@ const priceLabel: Record<PriceTier, string> = {
   einmalig: "Einmalig",
 };
 
+const ageOptions: { id: AgeFilter; label: string }[] = [
+  { id: "alle", label: "Alle" },
+  { id: "24h", label: "24 Std." },
+  { id: "7d", label: "7 Tage" },
+  { id: "30d", label: "30 Tage" },
+  { id: "aelter", label: "Älter" },
+];
+
 export function FilterBar({
   activeCategory,
   onCategoryChange,
   priceFilter,
   onPriceFilterChange,
+  ageFilter,
+  onAgeFilterChange,
 }: Props) {
   const togglePrice = (p: PriceTier) => {
     if (priceFilter.includes(p)) {
@@ -75,6 +87,24 @@ export function FilterBar({
             }`}
           >
             {priceLabel[p]}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-[var(--text-muted)]">Letzter Fund:</span>
+        {ageOptions.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => onAgeFilterChange(a.id)}
+            aria-pressed={ageFilter === a.id}
+            className={`focus-ring rounded-md border px-2.5 py-1 text-xs transition-colors ${
+              ageFilter === a.id
+                ? "border-[var(--teal)] text-[var(--teal)]"
+                : "border-[var(--line)] text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            {a.label}
           </button>
         ))}
       </div>

@@ -13,6 +13,9 @@ export interface Category {
 
 export type PriceTier = "kostenlos" | "freemium" | "abo" | "einmalig";
 
+/** Filter nach dem letzten Fund (lastUpdated) eines Tools. */
+export type AgeFilter = "alle" | "24h" | "7d" | "30d" | "aelter";
+
 export interface Source {
   name: string;
   url: string;
@@ -39,6 +42,7 @@ export interface UserPreferences {
   uid: string;
   categoryWeights: Record<CategoryId, number>; // 0-3, 0 = ausgeblendet
   priceFilter: PriceTier[]; // empty = alle
+  ageFilter?: AgeFilter; // fehlt = "alle"
   minTrustScore: number;
   digestFrequency: "täglich" | "wöchentlich";
   updatedAt: string;
