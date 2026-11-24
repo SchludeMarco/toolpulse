@@ -1,19 +1,28 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTools } from "../hooks/useTools";
+import { useNews } from "../hooks/useNews";
 import { usePreferences } from "../hooks/usePreferences";
 import { useFavorites } from "../hooks/useFavorites";
 import { useCompare } from "../context/CompareContext";
 import { useAuth } from "../context/AuthContext";
 import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
+import { CategoryNews } from "../components/CategoryNews";
 import { categories } from "../data/categories";
 import { matchesAgeFilter, relativeDe } from "../lib/time";
 import { triggerCurationNow } from "../lib/functions";
-import type { AgeFilter, CategoryId, PriceTier, Tool } from "../types";
+import type {
+  AgeFilter,
+  CategoryId,
+  NewsItem,
+  PriceTier,
+  Tool,
+} from "../types";
 
 export function FeedPage() {
   const { tools, loading, lastCuratedAt, refetch } = useTools();
+  const { news, refetch: refetchNews } = useNews();
   const { prefs, setPrefs } = usePreferences();
   const { favorites, toggleFavorite } = useFavorites();
   const { selected, toggle } = useCompare();
@@ -26,7 +35,7 @@ export function FeedPage() {
     setRefreshError(null);
     try {
       await triggerCurationNow();
-      await refetch();
+      await Promise.all([refetch(), refetchNews()]);
     } catch (e) {
       setRefreshError(
         e instanceof Error ? e.message : "Aktualisierung fehlgeschlagen."
@@ -113,6 +122,12 @@ export function FeedPage() {
     return grouped;
   }, [toolsMatchingNonCategoryFilters]);
 
+  const newsByCategory = useMemo(() => {
+    const grouped = {} as Record<CategoryId, NewsItem[]>;
+    for (const n of news) (grouped[n.categoryId] ??= []).push(n);
+    return grouped;
+  }, [news]);
+
   const visibleCategories = categories.filter(
     (c) => activeCategory === "alle" || c.id === activeCategory
   );
@@ -168,6 +183,7 @@ export function FeedPage() {
         <div className="flex flex-col gap-2">
           {visibleCategories.map((c) => {
             const catTools = categoryTools[c.id] ?? [];
+            const catNews = newsByCategory[c.id] ?? [];
             const isOpen = expandedCategories.has(c.id);
             return (
               <div key={c.id}>
@@ -194,12 +210,18 @@ export function FeedPage() {
                     style={{ background: c.color }}
                   />
                   {c.label} ({catTools.length})
+                  {catNews.length > 0 && (
+                    <span className="rounded-full bg-[var(--surface-raised)] px-1.5 py-0.5 text-[11px]">
+                      {catNews.length} News
+                    </span>
+                  )}
                 </button>
-                {isOpen && catTools.length > 0 && (
+                {isOpen && (catTools.length > 0 || catNews.length > 0) && (
                   <div
                     className="ml-1.5 mb-2 flex flex-col gap-1 rounded-lg border-l-2 bg-[var(--surface-raised)] p-3 pl-4"
                     style={{ borderColor: c.color }}
                   >
+                    <CategoryNews items={catNews} isDemoMode={isDemoMode} />
                     {catTools.map((tool) => {
                       const toolOpen = expandedTools.has(tool.id);
                       return (

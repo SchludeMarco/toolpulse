@@ -2,7 +2,8 @@
  * ToolPulse — tägliche Kuratierungs-Funktion
  * -------------------------------------------
  * Läuft einmal pro Tag (Cloud Scheduler), fragt für jeden Bereich per
- * Claude + Websuche nach aktuell empfehlenswerten Tools und schreibt das
+ * Claude + Websuche nach aktuell empfehlenswerten Tools sowie nach den
+ * aktuellen News des Bereichs und schreibt das
  * Ergebnis nach Firestore. Die Web-App liest ausschließlich aus Firestore
  * und ruft nie selbst ein LLM auf.
  *
@@ -105,6 +106,119 @@ async function curateCategory(anthropic, category) {
   }
 }
 
+const NEWS_SYSTEM_PROMPT = `Du bist ein sorgfältiger Tech-Redakteur. Du \
+recherchierst per Websuche die wichtigsten aktuellen Nachrichten der letzten \
+7 Tage zu einem gegebenen Themenbereich (z.B. neue Modell-Releases, Updates, \
+Übernahmen, Preisänderungen, wichtige Studien oder Trends). Antworte \
+AUSSCHLIESSLICH mit einem JSON-Array, ohne Markdown, ohne Erklärtext. Jedes \
+Element hat exakt diese Felder:
+{
+  "title": string (max. 100 Zeichen, auf Deutsch),
+  "summary": string (1-2 Sätze, auf Deutsch, sachlich),
+  "url": string (Link direkt auf den Artikel, echte URL aus der Websuche),
+  "source": string (Name des Mediums/der Website),
+  "publishedAt": string (Veröffentlichungsdatum als ISO-Datum JJJJ-MM-TT)
+}
+Nenne nur Meldungen, die du über die Websuche mit echten Artikeln belegen \
+konntest, und nur solche aus den letzten 7 Tagen. Erfinde keine URLs oder \
+Daten. Keine Doppelungen derselben Nachricht. Liefere 3-5 Einträge, sortiert \
+nach Wichtigkeit; lieber weniger als erfundene.`;
+
+const NEWS_MAX_AGE_DAYS = 30;
+
+async function fetchCategoryNews(anthropic, category) {
+  const today = new Date().toISOString().slice(0, 10);
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 3000,
+    system: NEWS_SYSTEM_PROMPT,
+    tools: [{ type: "web_search_20250305", name: "web_search" }],
+    messages: [
+      {
+        role: "user",
+        content: `Heute ist ${today}. Bereich: ${category.label}.${
+          category.focus ? ` Themenfeld: ${category.focus}` : ""
+        } Recherchiere jetzt die aktuellen News im Web und liefere das JSON-Array.`,
+      },
+    ],
+  });
+
+  const textBlocks = response.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+
+  const cleaned = textBlocks.replace(/```json|```/g, "").trim();
+  const match = cleaned.match(/\[[\s\S]*\]/);
+  if (!match) {
+    console.error(`Kein JSON-Array in News-Antwort für ${category.id}:`, cleaned);
+    return [];
+  }
+  try {
+    return JSON.parse(match[0]);
+  } catch (e) {
+    console.error(`JSON-Parse-Fehler bei News für ${category.id}:`, e);
+    return [];
+  }
+}
+
+// Stabile Dokument-ID aus der Artikel-URL, damit dieselbe Meldung bei
+// mehreren Läufen nicht doppelt gespeichert wird.
+function newsId(categoryId, url) {
+  const hash = require("crypto").createHash("sha1").update(url).digest("hex");
+  return `${categoryId}-${hash.slice(0, 16)}`;
+}
+
+function normalizeDate(value, fallbackIso) {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return fallbackIso;
+  // Datum in der Zukunft (Halluzination/Zeitzone) auf "jetzt" begrenzen.
+  return d.getTime() > Date.now() ? fallbackIso : d.toISOString();
+}
+
+async function curateNews(anthropic, category, nowIso) {
+  let items = [];
+  try {
+    items = await fetchCategoryNews(anthropic, category);
+  } catch (e) {
+    console.error(`News-Abruf fehlgeschlagen für ${category.id}:`, e);
+    return 0;
+  }
+
+  let stored = 0;
+  for (const item of items) {
+    if (!item?.title || !item?.url || !/^https?:\/\//.test(item.url)) continue;
+    const id = newsId(category.id, item.url);
+    const ref = db.collection("news").doc(id);
+    const existing = await ref.get();
+    await ref.set(
+      {
+        id,
+        categoryId: category.id,
+        title: String(item.title).slice(0, 160),
+        summary: item.summary ?? "",
+        url: item.url,
+        source: item.source ?? "",
+        publishedAt: normalizeDate(item.publishedAt, nowIso),
+        fetchedAt: existing.exists ? existing.data().fetchedAt : nowIso,
+      },
+      { merge: true }
+    );
+    stored++;
+  }
+  return stored;
+}
+
+// Entfernt Meldungen, die älter als NEWS_MAX_AGE_DAYS sind.
+async function pruneOldNews() {
+  const cutoff = new Date(
+    Date.now() - NEWS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+  const old = await db.collection("news").where("publishedAt", "<", cutoff).get();
+  await Promise.all(old.docs.map((d) => d.ref.delete()));
+  return old.size;
+}
+
 // Einfache Heuristik: mehr Quellen + kürzlich verifiziert = höherer Score.
 // Kann später durch echte Kreuzprüfung mehrerer Suchanfragen ersetzt werden.
 function computeTrustScore(entry) {
@@ -191,6 +305,11 @@ async function runCuration() {
   let updated = 0;
   const touched = [];
   let toolOfTheDay = null;
+  // News aller Bereiche parallel abrufen, damit der Lauf nicht doppelt so
+  // lange dauert; Fehler eines Bereichs blockieren die anderen nicht.
+  const newsPromise = Promise.all(
+    CATEGORIES.map((category) => curateNews(anthropic, category, now))
+  );
 
   for (const category of CATEGORIES) {
     let entries = [];
@@ -238,13 +357,23 @@ async function runCuration() {
     }
   }
 
+  const newsStored = (await newsPromise).reduce((sum, n) => sum + n, 0);
+
   await db.collection("curationRuns").add({
     ranAt: now,
     toolsAdded: added,
     toolsUpdated: updated,
     categoriesTouched: touched,
     toolOfTheDayId: toolOfTheDay?.id ?? null,
+    newsStored,
   });
+
+  try {
+    const pruned = await pruneOldNews();
+    if (pruned) console.log(`${pruned} alte News entfernt.`);
+  } catch (e) {
+    console.error("Aufräumen alter News fehlgeschlagen:", e);
+  }
 
   if (toolOfTheDay) {
     try {
@@ -254,7 +383,9 @@ async function runCuration() {
     }
   }
 
-  console.log(`Kuratierung abgeschlossen: ${added} neu, ${updated} aktualisiert.`);
+  console.log(
+    `Kuratierung abgeschlossen: ${added} neu, ${updated} aktualisiert, ${newsStored} News.`
+  );
 }
 
 const categoryById = (id) => CATEGORIES.find((c) => c.id === id);
@@ -404,7 +535,7 @@ exports.dailyCuration = onSchedule(
 // true` erlaubt den Aufruf per fetch() aus der Web-App heraus (z.B. der
 // "Jetzt aktualisieren"-Button im Feed).
 exports.runCurationNow = onRequest(
-  { secrets: [ANTHROPIC_API_KEY], cors: true, timeoutSeconds: 300, memory: "512MiB" },
+  { secrets: [ANTHROPIC_API_KEY], cors: true, timeoutSeconds: 540, memory: "512MiB" },
   async (req, res) => {
     try {
       await runCuration();

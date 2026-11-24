@@ -8,6 +8,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Aktuelle News pro Bereich: öffentlich lesbar, nur die Cloud Function
+    // (Admin-SDK) schreibt.
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Kuratierungs-Protokoll: nur lesbar, kein Client-Schreibzugriff.
     match /curationRuns/{runId} {
       allow read: if request.auth != null;

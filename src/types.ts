@@ -38,6 +38,17 @@ export interface Tool {
   tags: string[];
 }
 
+export interface NewsItem {
+  id: string;
+  categoryId: CategoryId;
+  title: string;
+  summary: string;
+  url: string;
+  source: string;
+  publishedAt: string; // ISO date
+  fetchedAt: string; // ISO date
+}
+
 export interface UserPreferences {
   uid: string;
   categoryWeights: Record<CategoryId, number>; // 0-3, 0 = ausgeblendet
