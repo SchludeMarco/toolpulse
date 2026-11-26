@@ -82,13 +82,18 @@ function parseArray(text: string): unknown[] {
   }
 }
 
+// Sonar hängt Quellen-Marker wie "[3]" oder "[7][9]" an; die brauchen wir nicht.
+function stripCitations(text: string): string {
+  return text.replace(/\s*(\[\d+\])+/g, "").trim();
+}
+
 function normalizeDate(value: unknown, fallback: string): string {
   const d = typeof value === "string" ? new Date(value) : null;
   if (!d || Number.isNaN(d.getTime()) || d.getTime() > Date.now()) return fallback;
   return d.toISOString();
 }
 
-async function fetchCategory(
+async function fetchCategoryOnce(
   token: string,
   category: (typeof CATEGORIES)[number],
   nowIso: string
@@ -123,14 +128,16 @@ async function fetchCategory(
   for (const raw of parseArray(text)) {
     const item = raw as Record<string, unknown>;
     const url = typeof item.url === "string" ? item.url : "";
-    const title = typeof item.title === "string" ? item.title.trim() : "";
+    const title =
+      typeof item.title === "string" ? stripCitations(item.title) : "";
     if (!title || !/^https?:\/\//.test(url) || seen.has(url)) continue;
     seen.add(url);
     items.push({
       id: `${category.id}-${await hashId(url)}`,
       categoryId: category.id,
       title: title.slice(0, 160),
-      summary: typeof item.summary === "string" ? item.summary : "",
+      summary:
+        typeof item.summary === "string" ? stripCitations(item.summary) : "",
       url,
       source: typeof item.source === "string" ? item.source : "",
       publishedAt: normalizeDate(item.publishedAt, nowIso),
@@ -138,6 +145,17 @@ async function fetchCategory(
     });
   }
   return items.slice(0, 5);
+}
+
+// Liefert das Modell kein verwertbares JSON, einmal neu fragen.
+async function fetchCategory(
+  token: string,
+  category: (typeof CATEGORIES)[number],
+  nowIso: string
+): Promise<NewsItem[]> {
+  const first = await fetchCategoryOnce(token, category, nowIso);
+  if (first.length > 0) return first;
+  return fetchCategoryOnce(token, category, nowIso);
 }
 
 export async function GET(): Promise<Response> {
