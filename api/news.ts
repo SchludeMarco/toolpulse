@@ -78,8 +78,15 @@ async function hashId(input: string): Promise<string> {
 }
 
 function parseArray(text: string): unknown[] {
-  const cleaned = text.replace(/```json|```/g, "").trim();
-  const match = cleaned.match(/\[[\s\S]*\]/);
+  const cleaned = text
+    .replace(/```json|```/g, "")
+    // Quellen-Marker wie [3] oder [7][9] direkt hinter JSON-Werten entfernen,
+    // sonst ist das JSON ungültig.
+    .replace(/(["\d}\]])\s*(?:\[\d+\])+(?=\s*[,}\]\n])/g, "$1")
+    .trim();
+  // Erst ab "[ {" suchen: Steht vor dem JSON Text mit Markern wie "[1]",
+  // würde ein einfaches /\[.*\]/ dort beginnen und das Parsen scheitern.
+  const match = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
   if (!match) return [];
   try {
     const parsed = JSON.parse(match[0]);
@@ -137,7 +144,14 @@ async function fetchCategoryOnce(
 
   const items: NewsItem[] = [];
   const seen = new Set<string>();
-  for (const raw of parseArray(text)) {
+  const entries = parseArray(text);
+  if (entries.length === 0) {
+    console.error(
+      `Keine verwertbare Antwort für ${category.id}:`,
+      text.slice(0, 600)
+    );
+  }
+  for (const raw of entries) {
     const item = raw as Record<string, unknown>;
     const url = typeof item.url === "string" ? item.url : "";
     const title =
