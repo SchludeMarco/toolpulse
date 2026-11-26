@@ -4,12 +4,13 @@ import { relativeDe } from "../lib/time";
 interface Props {
   items: NewsItem[];
   loading: boolean;
+  refreshing: boolean;
   error: string | null;
 }
 
 const MAX_VISIBLE = 5;
 
-export function CategoryNews({ items, loading, error }: Props) {
+export function CategoryNews({ items, loading, refreshing, error }: Props) {
   return (
     <section className="mb-3 border-b border-[var(--line)] pb-3">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
@@ -19,6 +20,8 @@ export function CategoryNews({ items, loading, error }: Props) {
         <p className="text-xs text-[var(--text-muted)]">
           {loading
             ? "Lade aktuelle News …"
+            : refreshing
+              ? "News werden gerade gesammelt – das dauert etwa eine Minute …"
             : error
               ? "News sind gerade nicht verfügbar. Versuch es später noch einmal."
               : "Keine aktuellen News für diesen Bereich gefunden."}

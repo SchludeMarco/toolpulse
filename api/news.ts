@@ -4,10 +4,17 @@
  * Läuft als Vercel Function und fragt per Vercel AI Gateway ein Modell mit
  * eingebauter Websuche (Perplexity Sonar) nach den wichtigsten Meldungen der
  * letzten 7 Tage. Authentifizierung über das OIDC-Token des Projekts, also
- * ohne eigenen API-Key. Die Antwort wird 6 Stunden im Vercel-CDN gecacht,
- * damit nicht jeder Seitenaufruf eine Suche auslöst.
+ * ohne eigenen API-Key.
+ *
+ * Das Suchmodell erlaubt nur 5 Anfragen pro Minute. Deshalb löst ein
+ * Seitenaufruf nie selbst eine Suche aus: Die Function liefert immer den
+ * zuletzt gespeicherten Stand aus dem Vercel Runtime Cache und stößt, wenn
+ * der älter als 6 Stunden ist, genau einen Abruf im Hintergrund an (mit
+ * Sperre gegen parallele Abrufe). Fällt ein Bereich aus, bleiben seine
+ * bisherigen News stehen.
  */
 import { getVercelOidcToken } from "@vercel/oidc";
+import { getCache, waitUntil } from "@vercel/functions";
 
 const MODEL = "perplexity/sonar";
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -184,28 +191,36 @@ async function fetchCategory(
   }
 }
 
-export async function GET(): Promise<Response> {
+interface Snapshot {
+  fetchedAt: string;
+  byCategory: Partial<Record<string, NewsItem[]>>;
+}
+
+const SNAPSHOT_KEY = "news:snapshot:v1";
+const LOCK_KEY = "news:refresh-lock:v1";
+const FRESH_MS = 6 * 60 * 60 * 1000;
+const SNAPSHOT_TTL_S = 14 * 24 * 60 * 60;
+const LOCK_TTL_S = 5 * 60;
+
+async function refreshSnapshot(previous: Snapshot | null): Promise<void> {
+  const cache = getCache();
   const nowIso = new Date().toISOString();
   let token: string;
   try {
     token = await getVercelOidcToken();
   } catch (e) {
     console.error("Kein OIDC-Token verfügbar:", e);
-    return Response.json(
-      { error: "News sind nur auf Vercel verfügbar." },
-      { status: 503 }
-    );
+    await cache.delete(LOCK_KEY);
+    return;
   }
 
-  // Bereiche nacheinander abfragen: das Suchmodell erlaubt nur 5 Anfragen
-  // pro Minute, parallele Abrufe laufen bei zwei gleichzeitigen Aufrufen
-  // sofort ins Limit. Bereiche ohne Ergebnis zählen als fehlgeschlagen.
-  const news: NewsItem[] = [];
+  const byCategory: Snapshot["byCategory"] = { ...previous?.byCategory };
   const failed: string[] = [];
+  // Nacheinander, damit ein Abruf unter dem Limit von 5 Anfragen/Minute bleibt.
   for (const c of CATEGORIES) {
     try {
       const items = await fetchCategory(token, c, nowIso);
-      if (items.length) news.push(...items);
+      if (items.length) byCategory[c.id] = items;
       else failed.push(c.id);
     } catch (e) {
       failed.push(c.id);
@@ -213,26 +228,46 @@ export async function GET(): Promise<Response> {
     }
   }
 
-  // Komplett fehlgeschlagen: nicht cachen, damit der nächste Aufruf es neu versucht.
-  if (news.length === 0 && failed.length > 0) {
-    return Response.json(
-      { error: "News konnten nicht geladen werden.", failed },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
+  if (failed.length < CATEGORIES.length) {
+    await cache.set(
+      SNAPSHOT_KEY,
+      { fetchedAt: nowIso, byCategory } satisfies Snapshot,
+      { ttl: SNAPSHOT_TTL_S, name: "ToolPulse News" }
     );
   }
+  if (failed.length) console.error("Keine neuen News für:", failed.join(", "));
+  await cache.delete(LOCK_KEY);
+}
 
+export async function GET(): Promise<Response> {
+  const cache = getCache();
+  const snapshot = (await cache.get(SNAPSHOT_KEY)) as Snapshot | null;
+  const isFresh =
+    snapshot !== null &&
+    Date.now() - new Date(snapshot.fetchedAt).getTime() < FRESH_MS;
+
+  let refreshing = false;
+  if (!isFresh) {
+    const locked = await cache.get(LOCK_KEY);
+    if (locked === null) {
+      await cache.set(LOCK_KEY, new Date().toISOString(), { ttl: LOCK_TTL_S });
+      waitUntil(refreshSnapshot(snapshot));
+    }
+    refreshing = true;
+  }
+
+  const news = Object.values(snapshot?.byCategory ?? {}).flatMap(
+    (items) => items ?? []
+  );
   return Response.json(
-    { fetchedAt: nowIso, news, failed },
+    { fetchedAt: snapshot?.fetchedAt ?? null, refreshing, news },
     {
       headers: {
         "Cache-Control": "public, max-age=0",
-        // Vollständig: 6 h frisch im CDN, danach bis zu 24 h veraltet
-        // ausliefern und im Hintergrund neu laden. Fehlt ein Bereich, nur
-        // 5 Minuten cachen, damit er bald nachgeladen wird.
-        "CDN-Cache-Control":
-          failed.length === 0
-            ? "public, s-maxage=21600, stale-while-revalidate=86400"
-            : "public, s-maxage=300",
+        // Kurz im CDN halten; die eigentliche Haltbarkeit regelt der Snapshot.
+        "CDN-Cache-Control": refreshing
+          ? "public, s-maxage=30"
+          : "public, s-maxage=600",
       },
     }
   );
