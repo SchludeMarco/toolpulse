@@ -5,13 +5,11 @@ import { useNews } from "../hooks/useNews";
 import { usePreferences } from "../hooks/usePreferences";
 import { useFavorites } from "../hooks/useFavorites";
 import { useCompare } from "../context/CompareContext";
-import { useAuth } from "../context/AuthContext";
 import { FilterBar } from "../components/FilterBar";
 import { ToolCard } from "../components/ToolCard";
 import { CategoryNews } from "../components/CategoryNews";
 import { categories } from "../data/categories";
 import { matchesAgeFilter, relativeDe } from "../lib/time";
-import { triggerCurationNow } from "../lib/functions";
 import type {
   AgeFilter,
   CategoryId,
@@ -24,7 +22,13 @@ import type {
 const FALLBACK_COUNT = 5;
 
 export function FeedPage() {
-  const { tools, loading, lastCuratedAt, refetch } = useTools();
+  const {
+    tools,
+    loading,
+    refreshing: toolsRefreshing,
+    lastCuratedAt,
+    refetch,
+  } = useTools();
   const {
     news,
     loading: newsLoading,
@@ -35,7 +39,6 @@ export function FeedPage() {
   const { prefs, setPrefs } = usePreferences();
   const { favorites, toggleFavorite } = useFavorites();
   const { selected, toggle } = useCompare();
-  const { isDemoMode } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
@@ -43,7 +46,8 @@ export function FeedPage() {
     setRefreshing(true);
     setRefreshError(null);
     try {
-      await triggerCurationNow();
+      // Die Suche selbst läuft automatisch im Hintergrund (Vercel); hier
+      // holen wir nur den neuesten Stand ab.
       await Promise.all([refetch(), refetchNews()]);
     } catch (e) {
       setRefreshError(
@@ -178,7 +182,7 @@ export function FeedPage() {
             {lastCuratedAt
               ? `Letzte Kuratierung ${relativeDe(lastCuratedAt)}`
               : "Wird geladen …"}{" "}
-            · sortiert nach deinen Gewichtungen
+            {toolsRefreshing ? "· Suche nach neuen Tools läuft" : "· sortiert nach deinen Gewichtungen"}
           </p>
         </div>
         {selected.length > 0 && (
@@ -334,14 +338,15 @@ export function FeedPage() {
       <div className="mt-8 flex flex-col items-center gap-2 border-t border-[var(--line)] pt-6">
         <button
           onClick={refreshNow}
-          disabled={isDemoMode || refreshing}
+          disabled={refreshing}
           className="focus-ring rounded-md border border-[var(--line)] px-3.5 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {refreshing ? "Aktualisiere … (kann bis zu einer Minute dauern)" : "Jetzt aktualisieren"}
+          {refreshing ? "Aktualisiere …" : "Jetzt aktualisieren"}
         </button>
-        {isDemoMode && (
+        {toolsRefreshing && (
           <p className="text-xs text-[var(--text-muted)]">
-            Manuelle Aktualisierung erfordert ein verbundenes Firebase-Projekt.
+            Die Suche nach neuen Tools läuft gerade im Hintergrund – das
+            dauert ein paar Minuten, der Feed aktualisiert sich von selbst.
           </p>
         )}
         {refreshError && (
