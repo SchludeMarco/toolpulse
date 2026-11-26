@@ -1,47 +1,27 @@
-// Gästeliste ("Nur für Eingeladene", wie bei RetroMind): ToolPulse öffnet
-// sich nur für Personen, deren E-Mail-Adresse Marco freigeschaltet hat. Die
-// Liste liegt in der Upstash-Datenbank (Set tp:guests), Marco (ADMIN_EMAIL)
-// ist immer freigeschaltet. Nach der Google-Anmeldung auf /gate.html stellt
-// der Server ein signiertes Cookie aus; middleware.js lässt Anfragen nur mit
-// gültigem Cookie durch. Dateien mit "_" sind keine Routen. Nur Web Crypto und
-// fetch, damit die Middleware das Modul auch nutzen kann.
+// Gäste-Cookie ("Nur für Eingeladene", wie bei RetroMind): ToolPulse öffnet
+// sich nur für Personen, deren E-Mail-Adresse Marco freigeschaltet hat. Nach
+// der Google-Anmeldung auf /gate.html stellt /api/session ein mit
+// GUEST_SECRET signiertes Cookie aus; middleware.js lässt Anfragen nur mit
+// gültigem Cookie durch. Die Gästeliste selbst liegt im Vercel Blob
+// (api/_guestStore.js) und wird nur von Functions gelesen; die Middleware
+// prüft ausschließlich das Cookie. Dateien mit "_" sind keine Routen. Nur Web
+// Crypto hier, damit die Middleware das Modul nutzen kann.
 
 export const COOKIE = "tp_guest";
-const MAX_AGE = 30 * 24 * 3600; // 30 Tage angemeldet nach der letzten Prüfung
-export const RECHECK_AFTER = 24 * 3600; // Liste höchstens einmal am Tag neu prüfen
-const GUESTS_KEY = "tp:guests";
+const MAX_AGE = 30 * 24 * 3600; // Cookie gilt 30 Tage
+// Nach einem Tag schickt die Middleware Seitenaufrufe kurz über die
+// Gästetür, die bei bestehender Google-Anmeldung die Freischaltung von selbst
+// neu prüft. Ein entfernter Gast verliert den Zugang so spätestens nach einem Tag.
+export const RECHECK_AFTER = 24 * 3600;
 
 export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "marco.schlude@gmail.com").toLowerCase();
 
-const redisUrl = () => process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = () => process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-const secret = () => process.env.GUEST_SECRET || redisToken() || "";
-export const guestsConfigured = () => !!(redisUrl() && redisToken() && secret());
-
-async function redis(command) {
-  const res = await fetch(redisUrl(), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${redisToken()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-  });
-  if (!res.ok) throw new Error(`redis ${res.status}`);
-  const out = await res.json();
-  if (out.error) throw new Error(`redis: ${out.error}`);
-  return out.result;
-}
+const secret = () => process.env.GUEST_SECRET || "";
+const storeConfigured = () => !!(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
+export const guestsConfigured = () => !!(secret() && storeConfigured());
 
 export const normalizeEmail = (s) => String(s || "").trim().toLowerCase();
 export const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 200;
-
-export async function isGuest(email) {
-  const e = normalizeEmail(email);
-  if (!e) return false;
-  if (e === ADMIN_EMAIL) return true;
-  return (await redis(["SISMEMBER", GUESTS_KEY, e])) === 1;
-}
-export const listGuests = async () => ((await redis(["SMEMBERS", GUESTS_KEY])) || []).sort();
-export const addGuest = (email) => redis(["SADD", GUESTS_KEY, normalizeEmail(email)]);
-export const removeGuest = (email) => redis(["SREM", GUESTS_KEY, normalizeEmail(email)]);
 
 // ---- signiertes Cookie: base64url(email).issuedAt.hmac
 

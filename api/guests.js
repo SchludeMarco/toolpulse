@@ -1,7 +1,8 @@
 // /api/guests — Gästeliste pflegen, nur für Marco (ADMIN_EMAIL).
 // Authorization: Bearer <Firebase-ID-Token>
 // GET: Liste · POST {email}: freischalten · DELETE {email}: entfernen
-import { ADMIN_EMAIL, addGuest, guestsConfigured, listGuests, normalizeEmail, removeGuest, validEmail } from "./_guests.js";
+import { ADMIN_EMAIL, guestsConfigured, normalizeEmail, validEmail } from "./_guests.js";
+import { addGuest, listGuests, removeGuest } from "./_guestStore.js";
 import { bearer, firebaseEmail } from "./_firebaseToken.js";
 
 const json = (body, status = 200) =>
@@ -27,8 +28,7 @@ async function change(request, fn) {
   const body = await request.json().catch(() => ({}));
   const email = normalizeEmail(body.email);
   if (!validEmail(email)) return json({ error: "invalid_email" }, 400);
-  await fn(email);
-  return json({ ok: true, guests: await listGuests() });
+  return json({ ok: true, guests: await fn(email) });
 }
 
 export const POST = (request) => change(request, addGuest);
