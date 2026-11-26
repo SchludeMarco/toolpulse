@@ -1,3 +1,4 @@
+import { GuestsAdmin } from "../components/GuestsAdmin";
 import { usePreferences } from "../hooks/usePreferences";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { categories } from "../data/categories";
@@ -185,6 +186,8 @@ export function SettingsPage() {
           )}
         </div>
       </section>
+
+      <GuestsAdmin />
     </div>
   );
 }
