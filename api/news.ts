@@ -118,7 +118,12 @@ async function fetchCategoryOnce(
     }),
   });
   if (!res.ok) {
-    throw new Error(`AI Gateway ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    const body = (await res.text()).slice(0, 300);
+    if (res.status === 429) {
+      const seconds = Number(body.match(/Retry after (\d+)s/)?.[1] ?? 30);
+      throw new RateLimitError(Math.min(seconds, 60));
+    }
+    throw new Error(`AI Gateway ${res.status}: ${body}`);
   }
   const data = await res.json();
   const text: string = data?.choices?.[0]?.message?.content ?? "";
@@ -147,15 +152,36 @@ async function fetchCategoryOnce(
   return items.slice(0, 5);
 }
 
-// Liefert das Modell kein verwertbares JSON, einmal neu fragen.
+class RateLimitError extends Error {
+  readonly retryAfterSeconds: number;
+  constructor(retryAfterSeconds: number) {
+    super(`Rate-Limit, erneut in ${retryAfterSeconds}s`);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Höchstens zwei Versuche: neu fragen, wenn das Modell kein verwertbares
+// JSON liefert, und nach einem Rate-Limit (429) die genannte Zeit warten.
 async function fetchCategory(
   token: string,
   category: (typeof CATEGORIES)[number],
   nowIso: string
 ): Promise<NewsItem[]> {
-  const first = await fetchCategoryOnce(token, category, nowIso);
-  if (first.length > 0) return first;
-  return fetchCategoryOnce(token, category, nowIso);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const items = await fetchCategoryOnce(token, category, nowIso);
+      if (items.length > 0 || attempt >= 2) return items;
+    } catch (e) {
+      if (attempt >= 2) throw e;
+      if (e instanceof RateLimitError) {
+        await sleep(e.retryAfterSeconds * 1000);
+      } else {
+        throw e;
+      }
+    }
+  }
 }
 
 export async function GET(): Promise<Response> {
@@ -196,11 +222,18 @@ export async function GET(): Promise<Response> {
     { fetchedAt: nowIso, news, failed },
     {
       headers: {
-        // 6 h frisch im CDN, danach bis zu 24 h veraltet ausliefern und im
-        // Hintergrund neu laden.
         "Cache-Control": "public, max-age=0",
-        "CDN-Cache-Control": "public, s-maxage=21600, stale-while-revalidate=86400",
+        // Vollständig: 6 h frisch im CDN, danach bis zu 24 h veraltet
+        // ausliefern und im Hintergrund neu laden. Fehlt ein Bereich, nur
+        // 5 Minuten cachen, damit er bald nachgeladen wird.
+        "CDN-Cache-Control":
+          failed.length === 0
+            ? "public, s-maxage=21600, stale-while-revalidate=86400"
+            : "public, s-maxage=300",
       },
     }
   );
 }
+
+// Platz für Wartezeit nach einem Rate-Limit plus zweiten Versuch.
+export const config = { maxDuration: 120 };
