@@ -73,6 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     await fbSignOut(auth);
+    // Auch das Gäste-Cookie löschen; danach führt die Startseite zur
+    // Gästetür (sofern der Gästezugang aktiv ist).
+    try {
+      await fetch("/api/session", { method: "DELETE" });
+    } catch {
+      // egal, die Firebase-Abmeldung hat schon geklappt
+    }
+    location.assign("/");
   };
 
   return (

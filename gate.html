@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>ToolPulse — nur für Eingeladene</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <main class="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5 py-10">
+      <div class="mb-6 flex items-center gap-2.5">
+        <span class="inline-flex h-2.5 w-2.5 rounded-full bg-[var(--amber)]"></span>
+        <span class="display text-xl font-semibold tracking-tight">ToolPulse</span>
+      </div>
+      <h1 class="display text-2xl font-semibold tracking-tight">Nur für Eingeladene</h1>
+      <p class="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+        ToolPulse ist ein privater Kreis. Melde dich mit dem Google-Konto an,
+        dessen E-Mail-Adresse freigeschaltet wurde.
+      </p>
+      <button id="signin" class="focus-ring mt-6 rounded-md bg-[var(--surface-raised)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--line)]">
+        Mit Google anmelden
+      </button>
+      <p id="status" class="mt-4 min-h-[1.25rem] text-sm text-[var(--text-muted)]" role="status" aria-live="polite"></p>
+      <button id="switch" hidden class="focus-ring mt-2 self-start rounded-md text-sm text-[var(--text-muted)] underline hover:text-[var(--text)]">
+        Mit einem anderen Konto anmelden
+      </button>
+    </main>
+    <script type="module" src="/src/gate.ts"></script>
+  </body>
+</html>
