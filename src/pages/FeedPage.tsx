@@ -25,6 +25,7 @@ export function FeedPage() {
   const {
     news,
     loading: newsLoading,
+    refreshing: newsRefreshing,
     error: newsError,
     refetch: refetchNews,
   } = useNews();
@@ -229,6 +230,7 @@ export function FeedPage() {
                     <CategoryNews
                       items={catNews}
                       loading={newsLoading}
+                      refreshing={newsRefreshing}
                       error={newsError}
                     />
                     {catTools.map((tool) => {
