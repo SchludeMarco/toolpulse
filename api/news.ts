@@ -194,11 +194,13 @@ async function fetchCategory(
 interface Snapshot {
   fetchedAt: string;
   byCategory: Partial<Record<string, NewsItem[]>>;
+  missing?: string[]; // Bereiche ohne News, werden früher nachgeholt
 }
 
 const SNAPSHOT_KEY = "news:snapshot:v1";
 const LOCK_KEY = "news:refresh-lock:v1";
 const FRESH_MS = 6 * 60 * 60 * 1000;
+const FRESH_INCOMPLETE_MS = 15 * 60 * 1000;
 const SNAPSHOT_TTL_S = 14 * 24 * 60 * 60;
 const LOCK_TTL_S = 5 * 60;
 
@@ -231,7 +233,13 @@ async function refreshSnapshot(previous: Snapshot | null): Promise<void> {
   if (failed.length < CATEGORIES.length) {
     await cache.set(
       SNAPSHOT_KEY,
-      { fetchedAt: nowIso, byCategory } satisfies Snapshot,
+      {
+        fetchedAt: nowIso,
+        byCategory,
+        missing: CATEGORIES.filter((c) => !byCategory[c.id]?.length).map(
+          (c) => c.id
+        ),
+      } satisfies Snapshot,
       { ttl: SNAPSHOT_TTL_S, name: "ToolPulse News" }
     );
   }
@@ -242,9 +250,10 @@ async function refreshSnapshot(previous: Snapshot | null): Promise<void> {
 export async function GET(): Promise<Response> {
   const cache = getCache();
   const snapshot = (await cache.get(SNAPSHOT_KEY)) as Snapshot | null;
+  const maxAge = snapshot?.missing?.length ? FRESH_INCOMPLETE_MS : FRESH_MS;
   const isFresh =
     snapshot !== null &&
-    Date.now() - new Date(snapshot.fetchedAt).getTime() < FRESH_MS;
+    Date.now() - new Date(snapshot.fetchedAt).getTime() < maxAge;
 
   let refreshing = false;
   if (!isFresh) {
