@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { NewsItem } from "../types";
 import { relativeDe } from "../lib/time";
 
@@ -11,13 +12,31 @@ interface Props {
 const MAX_VISIBLE = 5;
 
 export function CategoryNews({ items, loading, refreshing, error }: Props) {
+  // Standardmäßig eingeklappt, damit die Tools im Vordergrund stehen.
+  const [open, setOpen] = useState(false);
+
   return (
     <section className="mb-3 border-b border-[var(--line)] pb-3">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-        Aktuelle News
-      </h3>
-      {items.length === 0 ? (
-        <p className="text-xs text-[var(--text-muted)]">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="focus-ring flex items-center gap-1.5 rounded-md text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] hover:text-[var(--text)]"
+      >
+        <svg
+          className={`h-3 w-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        Aktuelle News{items.length > 0 ? ` (${items.length})` : ""}
+      </button>
+      {!open ? null : items.length === 0 ? (
+        <p className="mt-2 text-xs text-[var(--text-muted)]">
           {loading
             ? "Lade aktuelle News …"
             : refreshing
@@ -27,7 +46,7 @@ export function CategoryNews({ items, loading, refreshing, error }: Props) {
               : "Keine aktuellen News für diesen Bereich gefunden."}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul className="mt-2 flex flex-col gap-2.5">
           {items.slice(0, MAX_VISIBLE).map((n) => (
             <li key={n.id}>
               <a
