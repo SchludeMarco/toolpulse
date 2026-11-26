@@ -234,6 +234,3 @@ export async function GET(): Promise<Response> {
     }
   );
 }
-
-// Platz für Wartezeit nach einem Rate-Limit plus zweiten Versuch.
-export const config = { maxDuration: 120 };
