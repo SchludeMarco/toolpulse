@@ -3,12 +3,13 @@ import { relativeDe } from "../lib/time";
 
 interface Props {
   items: NewsItem[];
-  isDemoMode: boolean;
+  loading: boolean;
+  error: string | null;
 }
 
 const MAX_VISIBLE = 5;
 
-export function CategoryNews({ items, isDemoMode }: Props) {
+export function CategoryNews({ items, loading, error }: Props) {
   return (
     <section className="mb-3 border-b border-[var(--line)] pb-3">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
@@ -16,9 +17,11 @@ export function CategoryNews({ items, isDemoMode }: Props) {
       </h3>
       {items.length === 0 ? (
         <p className="text-xs text-[var(--text-muted)]">
-          {isDemoMode
-            ? "News erscheinen, sobald ein Firebase-Projekt verbunden ist."
-            : "Noch keine News für diesen Bereich – sie kommen mit der nächsten Kuratierung."}
+          {loading
+            ? "Lade aktuelle News …"
+            : error
+              ? "News sind gerade nicht verfügbar. Versuch es später noch einmal."
+              : "Keine aktuellen News für diesen Bereich gefunden."}
         </p>
       ) : (
         <ul className="flex flex-col gap-2.5">
