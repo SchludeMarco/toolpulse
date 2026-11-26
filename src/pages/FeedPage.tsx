@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTools } from "../hooks/useTools";
 import { useNews } from "../hooks/useNews";
@@ -19,6 +19,9 @@ import type {
   PriceTier,
   Tool,
 } from "../types";
+
+// So viele neueste Tools zeigen, wenn im gewählten Zeitraum keine gefunden wurden.
+const FALLBACK_COUNT = 5;
 
 export function FeedPage() {
   const { tools, loading, lastCuratedAt, refetch } = useTools();
@@ -60,6 +63,13 @@ export function FeedPage() {
   const [ageFilter, setAgeFilter] = useState<AgeFilter>(
     prefs.ageFilter ?? "alle"
   );
+  // Gespeicherte Filter übernehmen, sobald die Einstellungen geladen sind
+  // (beim ersten Rendern sind sie noch nicht da).
+  useEffect(() => {
+    setPriceFilter(prefs.priceFilter ?? []);
+    setAgeFilter(prefs.ageFilter ?? "alle");
+  }, [prefs.priceFilter, prefs.ageFilter]);
+
   const [expandedCategories, setExpandedCategories] = useState<
     Set<CategoryId>
   >(new Set());
@@ -106,27 +116,38 @@ export function FeedPage() {
     });
   };
 
-  const toolsMatchingNonCategoryFilters = useMemo(() => {
+  // Alle Filter außer Bereich und Alter.
+  const toolsMatchingBaseFilters = useMemo(() => {
     return tools
       .filter((t) => priceFilter.length === 0 || priceFilter.includes(t.priceTier))
-      .filter((t) => matchesAgeFilter(t.lastUpdated, ageFilter))
       .filter((t) => t.trustScore >= prefs.minTrustScore)
       .filter((t) => (prefs.categoryWeights[t.categoryId] ?? 2) > 0);
-  }, [tools, priceFilter, ageFilter, prefs]);
+  }, [tools, priceFilter, prefs]);
 
+  // Pro Bereich die Tools im gewählten Zeitraum. Gibt es dort keine, zeigen
+  // wir stattdessen die neuesten Funde des Bereichs (mit Hinweis), damit ein
+  // Bereich nie leer wirkt, nur weil länger nichts Neues gefunden wurde.
   const categoryTools = useMemo(() => {
+    const byNewest = (a: Tool, b: Tool) =>
+      new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
     const grouped = {} as Record<CategoryId, Tool[]>;
-    for (const t of toolsMatchingNonCategoryFilters) {
+    for (const t of toolsMatchingBaseFilters) {
       (grouped[t.categoryId] ??= []).push(t);
     }
-    for (const list of Object.values(grouped)) {
-      list.sort(
-        (a, b) =>
-          new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
-      );
+    const result = {} as Record<
+      CategoryId,
+      { tools: Tool[]; inRange: number; fallback: boolean }
+    >;
+    for (const [id, list] of Object.entries(grouped) as [CategoryId, Tool[]][]) {
+      list.sort(byNewest);
+      const inRange = list.filter((t) => matchesAgeFilter(t.lastUpdated, ageFilter));
+      result[id] =
+        inRange.length > 0 || list.length === 0
+          ? { tools: inRange, inRange: inRange.length, fallback: false }
+          : { tools: list.slice(0, FALLBACK_COUNT), inRange: 0, fallback: true };
     }
-    return grouped;
-  }, [toolsMatchingNonCategoryFilters]);
+    return result;
+  }, [toolsMatchingBaseFilters, ageFilter]);
 
   const newsByCategory = useMemo(() => {
     const grouped = {} as Record<CategoryId, NewsItem[]>;
@@ -138,7 +159,11 @@ export function FeedPage() {
     (c) => activeCategory === "alle" || c.id === activeCategory
   );
   const totalVisibleTools = visibleCategories.reduce(
-    (sum, c) => sum + (categoryTools[c.id]?.length ?? 0),
+    (sum, c) => sum + (categoryTools[c.id]?.tools.length ?? 0),
+    0
+  );
+  const totalVisibleNews = visibleCategories.reduce(
+    (sum, c) => sum + (newsByCategory[c.id]?.length ?? 0),
     0
   );
 
@@ -179,16 +204,16 @@ export function FeedPage() {
 
       {loading ? (
         <p className="text-sm text-[var(--text-muted)]">Lade Tools …</p>
-      ) : totalVisibleTools === 0 ? (
+      ) : totalVisibleTools === 0 && totalVisibleNews === 0 && !newsLoading ? (
         <div className="rounded-xl border border-dashed border-[var(--line)] p-8 text-center text-sm text-[var(--text-muted)]">
-          Keine Tools passen zu diesen Filtern. Passe die Preis-, Alters-
-          oder Bereichsauswahl an, oder aktiviere weitere Bereiche in den
-          Einstellungen.
+          Keine Tools passen zu diesen Filtern. Passe die Preisauswahl an oder
+          aktiviere weitere Bereiche in den Einstellungen.
         </div>
       ) : (
         <div className="flex flex-col gap-2">
           {visibleCategories.map((c) => {
-            const catTools = categoryTools[c.id] ?? [];
+            const catEntry = categoryTools[c.id];
+            const catTools = catEntry?.tools ?? [];
             const catNews = newsByCategory[c.id] ?? [];
             const isOpen = expandedCategories.has(c.id);
             return (
@@ -215,7 +240,7 @@ export function FeedPage() {
                     className="h-1.5 w-1.5 rounded-full"
                     style={{ background: c.color }}
                   />
-                  {c.label} ({catTools.length})
+                  {c.label} ({catEntry?.inRange ?? 0})
                   {catNews.length > 0 && (
                     <span className="rounded-full bg-[var(--surface-raised)] px-1.5 py-0.5 text-[11px]">
                       {catNews.length} News
@@ -233,6 +258,18 @@ export function FeedPage() {
                       refreshing={newsRefreshing}
                       error={newsError}
                     />
+                    {catEntry?.fallback && (
+                      <p className="mb-1 text-xs text-[var(--text-muted)]">
+                        Im gewählten Zeitraum wurde hier nichts Neues gefunden –
+                        das sind die neuesten Funde:
+                      </p>
+                    )}
+                    {catTools.length === 0 && (
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Keine Tools in diesem Bereich, die zu deiner
+                        Preisauswahl passen.
+                      </p>
+                    )}
                     {catTools.map((tool) => {
                       const toolOpen = expandedTools.has(tool.id);
                       return (
