@@ -51,18 +51,15 @@ interface NewsItem {
   fetchedAt: string;
 }
 
-type CategoryId = (typeof CATEGORIES)[number]["id"];
-
 const SYSTEM_PROMPT = `Du bist ein sorgfältiger Tech-Redakteur. Recherchiere per \
-Websuche die wichtigsten Nachrichten der letzten 7 Tage zu jedem der genannten \
-Bereiche. Antworte AUSSCHLIESSLICH mit einem JSON-Objekt ohne Markdown und ohne \
-Erklärtext. Die Schlüssel sind die Bereichs-IDs, die Werte jeweils ein Array \
-mit Elementen genau dieser Form:
+Websuche die wichtigsten Nachrichten der letzten 7 Tage zum genannten Bereich. \
+Antworte AUSSCHLIESSLICH mit einem JSON-Array ohne Markdown und ohne \
+Erklärtext. Jedes Element hat exakt diese Felder:
 {"title": string (max. 100 Zeichen, Deutsch), "summary": string (1-2 Sätze, \
 Deutsch, sachlich), "url": string (direkter Link auf den Artikel), "source": \
 string (Name des Mediums), "publishedAt": string (Datum JJJJ-MM-TT)}
 Nur echte, belegbare Meldungen aus den letzten 7 Tagen, keine Doppelungen, \
-keine erfundenen URLs. 3-5 Einträge pro Bereich, die wichtigste zuerst.`;
+keine erfundenen URLs. 3-5 Einträge, die wichtigste zuerst.`;
 
 async function hashId(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
@@ -73,17 +70,15 @@ async function hashId(input: string): Promise<string> {
     .join("");
 }
 
-function parseObject(text: string): Record<string, unknown> {
+function parseArray(text: string): unknown[] {
   const cleaned = text.replace(/```json|```/g, "").trim();
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) return {};
+  const match = cleaned.match(/\[[\s\S]*\]/);
+  if (!match) return [];
   try {
     const parsed = JSON.parse(match[0]);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed
-      : {};
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return {};
+    return [];
   }
 }
 
@@ -98,57 +93,12 @@ function normalizeDate(value: unknown, fallback: string): string {
   return d.toISOString();
 }
 
-class RateLimitError extends Error {
-  readonly retryAfterSeconds: number;
-  constructor(retryAfterSeconds: number) {
-    super(`Rate-Limit, erneut in ${retryAfterSeconds}s`);
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function toItems(
-  categoryId: CategoryId,
-  raw: unknown,
+async function fetchCategoryOnce(
+  token: string,
+  category: (typeof CATEGORIES)[number],
   nowIso: string
 ): Promise<NewsItem[]> {
-  if (!Array.isArray(raw)) return [];
-  const items: NewsItem[] = [];
-  const seen = new Set<string>();
-  for (const entry of raw) {
-    const item = (entry ?? {}) as Record<string, unknown>;
-    const url = typeof item.url === "string" ? item.url : "";
-    const title =
-      typeof item.title === "string" ? stripCitations(item.title) : "";
-    if (!title || !/^https?:\/\//.test(url) || seen.has(url)) continue;
-    seen.add(url);
-    items.push({
-      id: `${categoryId}-${await hashId(url)}`,
-      categoryId,
-      title: title.slice(0, 160),
-      summary:
-        typeof item.summary === "string" ? stripCitations(item.summary) : "",
-      url,
-      source: typeof item.source === "string" ? item.source : "",
-      publishedAt: normalizeDate(item.publishedAt, nowIso),
-      fetchedAt: nowIso,
-    });
-  }
-  return items.slice(0, 5);
-}
-
-// Eine einzige Anfrage für alle übergebenen Bereiche: das Suchmodell erlaubt
-// nur wenige Anfragen pro Minute, so bleibt ein Abruf weit darunter.
-async function fetchOnce(
-  token: string,
-  categories: readonly (typeof CATEGORIES)[number][],
-  nowIso: string
-): Promise<Map<CategoryId, NewsItem[]>> {
   const today = nowIso.slice(0, 10);
-  const list = categories
-    .map((c) => `- ${c.id} (${c.label}): ${c.focus}`)
-    .join("\n");
   const res = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: {
@@ -157,14 +107,12 @@ async function fetchOnce(
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 6000,
+      max_tokens: 2000,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Heute ist ${today}. Bereiche:\n${list}\nLiefere jetzt das JSON-Objekt mit den Schlüsseln ${categories
-            .map((c) => `"${c.id}"`)
-            .join(", ")}.`,
+          content: `Heute ist ${today}. Bereich: ${category.label}. Themenfeld: ${category.focus} Liefere jetzt das JSON-Array.`,
         },
       ],
     }),
@@ -178,37 +126,62 @@ async function fetchOnce(
     throw new Error(`AI Gateway ${res.status}: ${body}`);
   }
   const data = await res.json();
-  const parsed = parseObject(data?.choices?.[0]?.message?.content ?? "");
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
 
-  const result = new Map<CategoryId, NewsItem[]>();
-  for (const c of categories) {
-    result.set(c.id, await toItems(c.id, parsed[c.id], nowIso));
+  const items: NewsItem[] = [];
+  const seen = new Set<string>();
+  for (const raw of parseArray(text)) {
+    const item = raw as Record<string, unknown>;
+    const url = typeof item.url === "string" ? item.url : "";
+    const title =
+      typeof item.title === "string" ? stripCitations(item.title) : "";
+    if (!title || !/^https?:\/\//.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    items.push({
+      id: `${category.id}-${await hashId(url)}`,
+      categoryId: category.id,
+      title: title.slice(0, 160),
+      summary:
+        typeof item.summary === "string" ? stripCitations(item.summary) : "",
+      url,
+      source: typeof item.source === "string" ? item.source : "",
+      publishedAt: normalizeDate(item.publishedAt, nowIso),
+      fetchedAt: nowIso,
+    });
   }
-  return result;
+  return items.slice(0, 5);
 }
 
-// Höchstens zwei Anfragen: die zweite nur für Bereiche ohne Ergebnis, nach
-// einem Rate-Limit (429) erst nach der genannten Wartezeit.
-async function fetchAll(
-  token: string,
-  nowIso: string
-): Promise<Map<CategoryId, NewsItem[]>> {
-  const result = new Map<CategoryId, NewsItem[]>();
-  let pending: readonly (typeof CATEGORIES)[number][] = CATEGORIES;
-  for (let attempt = 1; attempt <= 2 && pending.length > 0; attempt++) {
-    try {
-      const batch = await fetchOnce(token, pending, nowIso);
-      for (const [id, items] of batch) {
-        if (items.length > 0) result.set(id, items);
-      }
-    } catch (e) {
-      console.error(`News-Abruf (Versuch ${attempt}) fehlgeschlagen:`, e);
-      if (attempt >= 2) break;
-      if (e instanceof RateLimitError) await sleep(e.retryAfterSeconds * 1000);
-    }
-    pending = pending.filter((c) => !result.has(c.id));
+class RateLimitError extends Error {
+  readonly retryAfterSeconds: number;
+  constructor(retryAfterSeconds: number) {
+    super(`Rate-Limit, erneut in ${retryAfterSeconds}s`);
+    this.retryAfterSeconds = retryAfterSeconds;
   }
-  return result;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Höchstens zwei Versuche: neu fragen, wenn das Modell kein verwertbares
+// JSON liefert, und nach einem Rate-Limit (429) die genannte Zeit warten.
+async function fetchCategory(
+  token: string,
+  category: (typeof CATEGORIES)[number],
+  nowIso: string
+): Promise<NewsItem[]> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const items = await fetchCategoryOnce(token, category, nowIso);
+      if (items.length > 0 || attempt >= 2) return items;
+    } catch (e) {
+      if (attempt >= 2) throw e;
+      if (e instanceof RateLimitError) {
+        await sleep(e.retryAfterSeconds * 1000);
+      } else {
+        throw e;
+      }
+    }
+  }
 }
 
 export async function GET(): Promise<Response> {
@@ -224,15 +197,21 @@ export async function GET(): Promise<Response> {
     );
   }
 
-  const byCategory = await fetchAll(token, nowIso);
+  // Bereiche nacheinander abfragen: das Suchmodell erlaubt nur 5 Anfragen
+  // pro Minute, parallele Abrufe laufen bei zwei gleichzeitigen Aufrufen
+  // sofort ins Limit. Bereiche ohne Ergebnis zählen als fehlgeschlagen.
   const news: NewsItem[] = [];
   const failed: string[] = [];
   for (const c of CATEGORIES) {
-    const items = byCategory.get(c.id);
-    if (items?.length) news.push(...items);
-    else failed.push(c.id);
+    try {
+      const items = await fetchCategory(token, c, nowIso);
+      if (items.length) news.push(...items);
+      else failed.push(c.id);
+    } catch (e) {
+      failed.push(c.id);
+      console.error(`News für ${c.id} fehlgeschlagen:`, e);
+    }
   }
-  if (failed.length) console.error("Keine News für:", failed.join(", "));
 
   // Komplett fehlgeschlagen: nicht cachen, damit der nächste Aufruf es neu versucht.
   if (news.length === 0 && failed.length > 0) {
