@@ -22,7 +22,12 @@ import type {
 
 export function FeedPage() {
   const { tools, loading, lastCuratedAt, refetch } = useTools();
-  const { news, refetch: refetchNews } = useNews();
+  const {
+    news,
+    loading: newsLoading,
+    error: newsError,
+    refetch: refetchNews,
+  } = useNews();
   const { prefs, setPrefs } = usePreferences();
   const { favorites, toggleFavorite } = useFavorites();
   const { selected, toggle } = useCompare();
@@ -216,12 +221,16 @@ export function FeedPage() {
                     </span>
                   )}
                 </button>
-                {isOpen && (catTools.length > 0 || catNews.length > 0) && (
+                {isOpen && (
                   <div
                     className="ml-1.5 mb-2 flex flex-col gap-1 rounded-lg border-l-2 bg-[var(--surface-raised)] p-3 pl-4"
                     style={{ borderColor: c.color }}
                   >
-                    <CategoryNews items={catNews} isDemoMode={isDemoMode} />
+                    <CategoryNews
+                      items={catNews}
+                      loading={newsLoading}
+                      error={newsError}
+                    />
                     {catTools.map((tool) => {
                       const toolOpen = expandedTools.has(tool.id);
                       return (
