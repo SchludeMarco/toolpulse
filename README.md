@@ -169,3 +169,8 @@ Funktion deaktiviert.
 - **E-Mail-Digest**: die wöchentliche Zusammenfassung aus `DigestPage.tsx`
   ließe sich per Cloud Function und z. B. SendGrid auch als E-Mail
   verschicken.
+
+## Gemeinsame Gästeliste
+
+Ist `APPS_GUEST_SECRET` gesetzt, lässt ToolPulse auch alle Gäste aus dem RetroMind-Adminbereich
+herein (eine Liste für alle Apps von Marco, 2026-11-26); die eigene Liste `tp:guests` gilt weiter.
