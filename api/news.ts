@@ -197,18 +197,21 @@ export async function GET(): Promise<Response> {
     );
   }
 
-  const results = await Promise.allSettled(
-    CATEGORIES.map((c) => fetchCategory(token, c, nowIso))
-  );
+  // Bereiche nacheinander abfragen: das Suchmodell erlaubt nur 5 Anfragen
+  // pro Minute, parallele Abrufe laufen bei zwei gleichzeitigen Aufrufen
+  // sofort ins Limit. Bereiche ohne Ergebnis zählen als fehlgeschlagen.
   const news: NewsItem[] = [];
   const failed: string[] = [];
-  results.forEach((r, i) => {
-    if (r.status === "fulfilled") news.push(...r.value);
-    else {
-      failed.push(CATEGORIES[i].id);
-      console.error(`News für ${CATEGORIES[i].id} fehlgeschlagen:`, r.reason);
+  for (const c of CATEGORIES) {
+    try {
+      const items = await fetchCategory(token, c, nowIso);
+      if (items.length) news.push(...items);
+      else failed.push(c.id);
+    } catch (e) {
+      failed.push(c.id);
+      console.error(`News für ${c.id} fehlgeschlagen:`, e);
     }
-  });
+  }
 
   // Komplett fehlgeschlagen: nicht cachen, damit der nächste Aufruf es neu versucht.
   if (news.length === 0 && failed.length > 0) {
