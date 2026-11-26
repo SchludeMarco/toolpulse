@@ -2,7 +2,10 @@
 // POST (Authorization: Bearer <Firebase-ID-Token>): Ist die Adresse
 //   freigeschaltet, gibt es das Gäste-Cookie, sonst 403.
 // DELETE: Cookie löschen (Abmelden).
-import { clearCookie, guestsConfigured, isGuest, makeCookie } from "./_guests.js";
+// GET: Diagnose, ob Gästezugang eingerichtet und die Liste lesbar ist
+//   (ohne Adressen preiszugeben).
+import { clearCookie, guestsConfigured, makeCookie } from "./_guests.js";
+import { isGuest, listGuests } from "./_guestStore.js";
 import { bearer, firebaseEmail } from "./_firebaseToken.js";
 
 const json = (body, status = 200, headers = {}) =>
@@ -28,4 +31,15 @@ export async function POST(request) {
 
 export async function DELETE() {
   return json({ ok: true }, 200, { "Set-Cookie": clearCookie() });
+}
+
+export async function GET() {
+  if (!guestsConfigured()) return json({ configured: false });
+  try {
+    const guests = await listGuests();
+    return json({ configured: true, store: "ok", count: guests.length });
+  } catch (e) {
+    console.error("Gästeliste nicht lesbar:", e);
+    return json({ configured: true, store: "error" }, 503);
+  }
 }

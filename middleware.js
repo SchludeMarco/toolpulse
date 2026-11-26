@@ -2,12 +2,13 @@
 // Angebot für die Personen, die Marco freischaltet, keine öffentliche Website.
 // Jede Anfrage braucht das signierte Gäste-Cookie von /gate.html
 // (api/_guests.js); ohne leiten Seiten zur Gästetür um und API-Aufrufe
-// bekommen 401. Die Gästeliste wird höchstens einmal am Tag neu geprüft, ein
-// Entfernen greift also innerhalb eines Tages. Vorschau-Deployments bleiben
-// offen (die schützt Vercel selbst). Ohne verbundene Datenbank bleibt die App
-// offen, statt alle auszusperren.
+// bekommen 401. Ist das Cookie älter als einen Tag, gehen Seitenaufrufe kurz
+// über die Gästetür, die die Freischaltung bei bestehender Google-Anmeldung
+// von selbst neu prüft; ein Entfernen greift also innerhalb eines Tages.
+// Vorschau-Deployments bleiben offen (die schützt Vercel selbst). Ohne
+// Speicher oder Schlüssel bleibt die App offen, statt alle auszusperren.
 import { next } from "@vercel/functions";
-import { RECHECK_AFTER, clearCookie, guestsConfigured, isGuest, makeCookie, readCookie } from "./api/_guests.js";
+import { RECHECK_AFTER, clearCookie, guestsConfigured, readCookie } from "./api/_guests.js";
 
 const OPEN = [
   /^\/gate\.html$/,
@@ -49,15 +50,6 @@ export default async function middleware(request) {
 
   const guest = await readCookie(request.headers.get("cookie"));
   if (!guest) return deny(request, url);
-  if (guest.age > RECHECK_AFTER && isPage(request)) {
-    let still = true;
-    try {
-      still = await isGuest(guest.email);
-    } catch {
-      return next(); // Datenbank kurz weg: durchlassen, die nächste Seite prüft erneut
-    }
-    if (!still) return deny(request, url);
-    return next({ headers: { "Set-Cookie": await makeCookie(guest.email) } });
-  }
+  if (guest.age > RECHECK_AFTER && isPage(request)) return deny(request, url);
   return next();
 }

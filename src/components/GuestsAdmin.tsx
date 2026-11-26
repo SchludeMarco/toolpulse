@@ -71,9 +71,9 @@ export function GuestsAdmin() {
 
       {!state.configured ? (
         <p className="mt-3 rounded-md border border-[var(--line)] px-3 py-2 text-xs text-[var(--text-muted)]">
-          Die Gästeliste ist noch nicht aktiv: Verbinde in Vercel die
-          Upstash-Datenbank mit dem Projekt „toolpulse“. Bis dahin ist die App
-          für alle offen.
+          Die Gästeliste ist noch nicht aktiv (Blob-Speicher oder
+          GUEST_SECRET fehlt im Vercel-Projekt). Bis dahin ist die App für
+          alle offen.
         </p>
       ) : (
         <>
